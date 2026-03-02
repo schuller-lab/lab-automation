@@ -10,7 +10,7 @@ Created on Wed Feb 25 09:29:55 2026
 # The following imports allow you to use the lab controls in any Python script 
 import sys 
 
-sys.path.append(r"C:\Users\schul\OneDrive\Desktop\code")
+sys.path.append(r"C:\Users\schul\OneDrive\Desktop\code\lab-automation")
 
 from LightFieldControls import LightField 
 from KinesisControls import (K10CR2, PRMTZ8) 
@@ -67,20 +67,27 @@ def pixel_deg_callibration(lf, analyzer, hwp, mirror, PM, N_points):
     
     lf.set_center_wavelength(0)
     lf.set_exposure_time(100) 
-    k_pos1_pix = int(input("Remove the slit, place the diffuser film on an in-focus coverslip, and turn on the lamp. \n" + 
+    input("Focus the microscope on the top surface of a coverslip. Remove the slit and turn on the laser. \n" +
+          "Position the input momentum at k = 0 (then at pixel 512), then press [Enter]")
+    
+    lf.set_exposure_time(10) 
+    k_pos1_pix = int(input("Shut the laser, place the diffuser film and turn on the lamp. \n" + 
                            "Bring the bfp into focus, then enter the pixel location of k = +1 (top)\n"))
     k_neg1_pix = int(input("Enter the pixel location of k = -1 (bottom)\n")) 
     pixels_per_2NA = round(NA * np.abs(k_neg1_pix - k_pos1_pix)) 
-    lf.set_exposure_time(10) 
-    input("Remove the diffuser film, replace the coverslip with an in-focus sample, turn off the lamp, and turn on the laser. \n" +
-          "Position the input momentum at k = 0 (and at pixel 512), then press [Enter]")
-    input("Position the slit, then press [Enter]") 
-    lf.set_center_wavelength(1080)
+    PM.set_wavelength(params['pump wavelength']) 
+    PM.zero() 
+    
+    
+    input("Remove the diffuser film and turn off the lamp.\n" + 
+          "Replace the coverslip with an in-focus sample and position the slit. Then open the laser and press [Enter].")          
+    lf.set_center_wavelength(params['pump wavelength'])
     mirror_0 = mirror.get_position() 
-    k_0_pix = 512 
+    k_0_pix = int(input('Please enter the pixel location of the incident momentum. (Use "One Look" in the GUI) \n')) 
+    
     mirror.move_relative(0.200) # I hope this isn't too much; lower the value if it is 
-    lf.one_look() 
-    k_200mdeg_pix = int(input("Please enter the new pixel location of the incident momentum\n")) 
+    #lf.one_look() 
+    k_200mdeg_pix = int(input('Please enter the new pixel location of the incident momentum. (Use "One Look" in the GUI) \n')) 
     pixels_per_200mdeg = np.abs(k_0_pix - k_200mdeg_pix) 
     
     # Because the minimum repeatable increment is 0.04 deg (which is ~0.1k0), its best to 
@@ -115,10 +122,10 @@ def pixel_deg_callibration(lf, analyzer, hwp, mirror, PM, N_points):
     
     # Convert to degrees, then reorder 
     degrees_to_measure = 0.200/pixels_per_200mdeg * (k_0_pix - pixels_to_measure) + mirror_0 
-    reordered_degrees = reorder_with_spacing(degrees_to_measure, 0.040)[::-1] 
+    reordered_degrees = reorder_with_spacing(degrees_to_measure, 0.040)#[::-1] 
     
     # Make an array of corresponding k values 
-    reordered_k_values = (reordered_degrees - mirror_0) * pixels_per_200mdeg / 0.200 / pixels_per_2NA * 2*NA
+    reordered_k_values = (reordered_degrees[::-1] - mirror_0) * pixels_per_200mdeg / 0.200 / pixels_per_2NA * 2*NA
     
     # Move back to original position before ending the expeirment 
     mirror.move_to(mirror_0) 
@@ -138,9 +145,11 @@ def reflection_experiment(lf, analyzer, hwp, mirror, PM, degrees, k_values, pixe
     
     input("If you ran pixel_deg_callibration(), then the slit should be positioned and the incident momentum should be k=0. \n" + 
           "Check this, then press [Enter]") 
+    mirror_0 = mirror.get_position() 
+    
     sample = input("What's the name of sample you're measuring reflection from? (no spaces)\n")
-    lf.set_center_wavelength(1080) 
-    lf.set_exposure_time(100) 
+    lf.set_center_wavelength(params['pump wavelength']) 
+    lf.set_exposure_time(10) 
     
     lf.acquire_background() 
     # Two schools of thought: 
@@ -158,7 +167,6 @@ def reflection_experiment(lf, analyzer, hwp, mirror, PM, degrees, k_values, pixe
     np.save(os.path.join(folder, 'k_values'), k_values)
     np.save(os.path.join(folder, 'pixels'), pixels) 
     
-    input("I assumed that positive mirror motion -> movement towards k=+1, but it actually means movements towards k=-1. Does this break anything? (naming, etc.)")
     # Set the polarization optics 
     for p in pol:
         # Set hwp 
@@ -180,10 +188,11 @@ def reflection_experiment(lf, analyzer, hwp, mirror, PM, degrees, k_values, pixe
         for i in range(len(degrees)): 
             # Move the mirror and save image as csv 
             mirror.move_to(degrees[i]) 
-            filename = f"{np.round(PM.read_power()*1e3):.0f}mW-{p[0]}pol-ky={'-' if k_values[i] <0 else '+'}{(k_values[i]):.2f}_{sample}_{p[-1]}pol-{(lf.get_exposure_time()):.0f}ms"
+            filename = f"{np.round(PM.read_power()*1e6):.0f}uW-{p[0]}pol-ky={'-' if k_values[i] <0 else '+'}{np.abs(k_values[i]):.2f}_{sample}_{p[-1]}pol-{(lf.get_exposure_time()):.0f}ms"
             filename.replace('.', ',') # Because .csv files can't have '.' in the name
             lf.acquire_as_csv(filename, folder)
-
+        
+        mirror.move_to(mirror_0)
 
 lf_params = {'experiment_name' : 'LEDs', # This is the only required parameter to initial a LightField experiment 
              # These are all optional 
@@ -192,6 +201,10 @@ lf_params = {'experiment_name' : 'LEDs', # This is the only required parameter t
              #'grating': '[500nm,300][0][0]'
              }  
 
+params = {"pump wavelength" : 1080, # (nm) 
+          "power beamsplitter s-pol R,T" : [0, 0], # Use these to normalize the pump power label 
+          "power beamsplitter p-pol R,T" : [0, 0]
+          }
 
 #lf, analyzer, hwp, mirror, PM = setup(lf_params) 
 #input("Now you can do your experiment")

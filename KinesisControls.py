@@ -43,6 +43,7 @@ class K10CR2:
     # -------------------------
 
     def connect(self):
+        print("Connecting...")
         DeviceManagerCLI.BuildDeviceList()
 
         self.device = CageRotator.CreateCageRotator(self.serial)
