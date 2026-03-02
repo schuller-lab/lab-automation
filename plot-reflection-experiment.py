@@ -18,7 +18,7 @@ def extract_max_counts(directory, pol):
     directory = Path(directory) 
     csv_files = [f.name for f in directory.glob(f"*{pol[0]}pol*{pol[-1]}pol*.csv")] 
 
-    
+    print(1) 
     results = {'pump power' : np.zeros(len(csv_files)), 
                'pump ky': np.zeros(len(csv_files)),
                'max counts' : np.zeros(len(csv_files))
