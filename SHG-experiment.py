@@ -165,6 +165,7 @@ def reflection_experiment(lf, analyzer, hwp, mirror, PM, degrees, k_values, pixe
     lf.set_exposure_time(10) 
     
     lf.acquire_background() 
+    
     # Two schools of thought: 
         # Move the mirror on the outside loop because the polarization optics are doing larger movements, 
             # and thus should be less sensitive to small errors over many repititions 
@@ -219,9 +220,9 @@ def reflection_experiment(lf, analyzer, hwp, mirror, PM, degrees, k_values, pixe
             filename.replace('.', ',') # Because .csv files can't have '.' in the name
             lf.acquire_as_csv(filename, directory)
         
-        mirror.move_to(mirror_0)
+    mirror.move_to(mirror_0)
 
-lf_params = {'experiment_name' : 'LEDs', # This is the only required parameter to initial a LightField experiment 
+lf_params = {'experiment_name' : 'SHG', # This is the only required parameter to initial a LightField experiment 
              # These are all optional 
              #'exposure_time' : 50.0, # Note that you need to use floating points, not integers, for all numeric values
              #'center_wavelength': 540.0, 
