@@ -20,6 +20,7 @@ from PowerMeterControls import PM100D
 import numpy as np 
 from datetime import date 
 import os # For mkdir, path.join, etc. 
+from pathlib import Path 
 
 def setup(lf_params):
     
@@ -219,7 +220,14 @@ def reflection_experiment(lf, analyzer, hwp, mirror, PM, degrees, k_values, pixe
             filename.replace('.', ',') # Because .csv files can't have '.' in the name
             lf.acquire_as_csv(filename, directory)
         
+        # After acquiring all the data you need, reset the mirror and clear the backup directory 
         mirror.move_to(mirror_0)
+        for file in Path(r"C:\Users\schul\OneDrive\Documents\LightField").glob("*.spe"):
+            try:
+                file.unlink()
+                #print(f"Deleted: {file}")
+            except Exception as e:
+                print(f"Error deleting {file}: {e}")
 
 lf_params = {'experiment_name' : 'LEDs', # This is the only required parameter to initial a LightField experiment 
              # These are all optional 

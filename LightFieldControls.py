@@ -127,6 +127,7 @@ class LightField:
     # Take "one look"
     def one_look(self):
         self.experiment.Acquire() 
+        #self.experiment.Preview() # This is the same as "Run" in the GUI 
         time.sleep(self.get_exposure_time()/1000 + 2.5) # Wait for the acquisition to finish 
     
     # Acquire and save image as csv 
