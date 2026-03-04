@@ -193,7 +193,7 @@ def reflection_experiment(lf, analyzer, hwp, mirror, PM, degrees, k_values, pixe
     
     # Set the polarization optics 
     for p in pol:
-        attenuator_angle = float(input("What is the current degree setting of the attenuator?\n"))
+        attenuator_angle = float(input(f"Doing a {p}-pol measurement now. What is the current degree setting of the attenuator?\n"))
         attenuator_offset = attenuator_angle - attenuator_zero 
         # As long as this is positive, it works as expected in the for loop (2026-02-27)  
         # its probably also correct if negative, I just haven't checked that 
