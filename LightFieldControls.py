@@ -11,8 +11,10 @@ import os
 from System.IO import FileAccess 
 from System import String
 from System.Collections.Generic import List
+from System.Runtime.Remoting import RemotingException 
 import numpy as np 
 import time 
+from pathlib import Path 
 
 sys.path.append(os.environ['LIGHTFIELD_ROOT'])
 sys.path.append(os.environ['LIGHTFIELD_ROOT']+'\\AddInViews')
@@ -124,28 +126,51 @@ class LightField:
               "Maybe one day this will be automated...\n" + 
               "Press [Enter] when ready to proceed.")
     
-    # Take "one look"
-    def one_look(self):
-        self.experiment.Acquire() 
-        time.sleep(self.get_exposure_time()/1000 + 2.5) # Wait for the acquisition to finish 
+# =============================================================================
+#     # Take "one look"
+#     def one_look(self):
+#         self.experiment.Acquire() 
+#         #self.experiment.Preview() # This is the same as "Run" in the GUI 
+#         time.sleep(self.get_exposure_time()/1000 + 2.5) # Wait for the acquisition to finish 
+# =============================================================================
     
     # Acquire and save image as csv 
     def acquire_as_csv(self, filename, directory=None):
         
-        if not self.did_first_acquire: # Trying to save the first-acquired frame always results in an error, so this is my solution 
+# =============================================================================
+#         def safe_open_file(path): # For safely opening LightField auto-saved files with Read/Write privileges 
+#             for i in range(2): # Try twice
+#                 try:
+#                     for f in self.file_manager.GetOpenFiles():
+#                         self.file_manager.CloseFile(f)
+#                     return self.file_manager.OpenFile(path, FileAccess.ReadWrite)
+#                 except RemotingException: 
+#                     print("LightField IPC lost. Reconnecting...")
+#                     self.lf = Automation(True, List[String]()) 
+#                     self.file_manager = self.lf.LightFieldApplication.FileManager 
+#                     time.sleep(1)
+#             raise RuntimeError("Failed to reconnect to LightField")
+# =============================================================================
+        
+        if not self.did_first_acquire: # Trying to save the first-acquired frame tends to result in an error, so this is my solution 
             self.experiment.Acquire() 
-            time.sleep(self.get_exposure_time()/1000 + 4) # Wait for the acquisition to finish; this first one sometimes takes longer, it seems 
+            while self.experiment.IsRunning:
+                time.sleep(0.1)
+            Path.unlink(self.file_manager.GetRecentlyAcquiredFileNames()[0]) # Delete the auto-saved file 
             self.did_first_acquire = True 
         
         # Acquire a frame 
-        self.experiment.Acquire()          
-        time.sleep(self.get_exposure_time()/1000 + 2.5) # Wait for the acquisition to finish 
+        self.experiment.Acquire()
+        while self.experiment.IsRunning:
+            time.sleep(0.1)
         
         # Convert the frame into a numpy array 
         recent_file = self.file_manager.GetRecentlyAcquiredFileNames()[0]
-        #print('Get Recently Acquired suceeded')
+        ######################
+        # I don't think this is needed, but I'll leave it here just in case 
+        #image_set = safe_open_file(recent_file) 
         image_set = self.file_manager.OpenFile(recent_file, FileAccess.ReadWrite)
-        #print("Open File suceeded")
+        ######################
         frame = image_set.GetFrame(0, 0)
         data_1d = np.array(frame.GetData())
         data_2d = data_1d.reshape((frame.Height, frame.Width))
@@ -163,7 +188,7 @@ class LightField:
         if directory:
             csv_path = os.path.join(directory, filename + ".csv")
         else:
-            csv_path = os.path.join(r"C:\Users\schul\OneDrive\Desktop\data\misc", filename + ".csv")
+            csv_path = os.path.join(r"C:\Users\schul\data\misc", filename + ".csv")
         
         # Write the csv file line-by-line to ensure its a 2D matrix 
         with open(csv_path, 'w') as f:
@@ -178,6 +203,9 @@ class LightField:
                 f.write('\n')
         
         print("Image saved as " + filename + ".csv")
+        
+        # Delete the auto-saved file 
+        Path.unlink(recent_file) 
 
     # Exit/close LightField 
     def close(self):

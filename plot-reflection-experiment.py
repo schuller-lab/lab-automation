@@ -18,7 +18,7 @@ def extract_max_counts(directory, pol):
     directory = Path(directory) 
     csv_files = [f.name for f in directory.glob(f"*{pol[0]}pol*{pol[-1]}pol*.csv")] 
 
-    
+    print(1) 
     results = {'pump power' : np.zeros(len(csv_files)), 
                'pump ky': np.zeros(len(csv_files)),
                'max counts' : np.zeros(len(csv_files))
@@ -38,7 +38,7 @@ def extract_max_counts(directory, pol):
 #directory = r'/home/wkmills/Dropbox/research/measurements/SHG-from-GaN/2026-03-02'
 directory = r'C:\Users\schul\data\Wes\reflection-experiments\2026-03-02(1)'
 
-ss_data = extract_max_counts(directory, 's/s')
+#ss_data = extract_max_counts(directory, 's/s')
 #pp_data = extract_max_counts(directory, 'p/p')
 
 # normalize 
@@ -52,6 +52,7 @@ plt.legend()
 
 plt.xlabel('$k_y/k_0$')
 plt.ylabel('Counts (normalized)')
+plt.title('Reflection from glass')
 
 plt.show() 
 
