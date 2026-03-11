@@ -61,16 +61,16 @@ def finish(lf, analyzer, hwp, mirror, PM):
     PM.disconnect() 
     lf.close()
     
-def pixel_deg_callibration(lf, analyzer, hwp, mirror, PM, N_points):
+def pixel_deg_calibration(lf, analyzer, hwp, mirror, PM, N_points):
     # Callibrate the pixel/deg mapping 
     # Return an ordered array of degree values to move the mirror to 
     # N = the length of the returned array, i.e., the number of k0 points to measure at 
     NA = 1.3 
     
     # Ask for the zero value of the hwp, analyzer, and attenuator 
+    attenuator_zero = float(input("What degree setting on the attenuator mount corresponds to a vertical polarization axis?\n"))
     hwp_zero = float(input("What degree setting on the hwp actuator corresponds to a vertical fast axis?\n"))
     analyzer_zero = float(input("What degree setting on the analyzer actuator corresponds to a vertical polarization axis?\n")) 
-    attenuator_zero = float(input("What degree setting on the attenuator mount corresponds to a vertical polarization axis?\n"))
     attenuator_angle = float(input("What is the current degree setting of the attenuator?\n"))
     attenuator_offset = attenuator_angle - attenuator_zero 
     
@@ -80,7 +80,8 @@ def pixel_deg_callibration(lf, analyzer, hwp, mirror, PM, N_points):
     
     lf.set_center_wavelength(0)
     lf.set_exposure_time(10) 
-    input("Focus the microscope on the top surface of a coverslip. Remove the slit and turn on the laser. \n" +
+    print("Make sure you've checked the bfp focus.")
+    input("Focus the microscope on the top surface of your sample. Remove the slit and turn on the laser. \n" +
           "Position the input momentum at k = 0 (then at pixel 512), then press [Enter]")
     
     lf.set_exposure_time(100) 
@@ -156,6 +157,7 @@ def reflection_experiment(lf, analyzer, hwp, mirror, PM, degrees, k_values, pixe
     lf.set_center_wavelength(params['pump wavelength']) 
     lf.set_exposure_time(10) 
     
+    input("Set the exposure time you want, then press [Enter].")
     lf.acquire_background() 
     
     # Two schools of thought: 
@@ -188,9 +190,10 @@ def reflection_experiment(lf, analyzer, hwp, mirror, PM, degrees, k_values, pixe
     np.save(os.path.join(directory, 'pixels'), pixels) 
     
     # Ask for the zero value of the hwp, analyzer, and attenuator 
+    attenuator_zero = float(input("What degree setting on the attenuator mount corresponds to a vertical polarization axis?\n"))
     hwp_zero = float(input("What degree setting on the hwp actuator corresponds to a vertical fast axis?\n"))
     analyzer_zero = float(input("What degree setting on the analyzer actuator corresponds to a vertical polarization axis?\n")) 
-    attenuator_zero = float(input("What degree setting on the attenuator mount corresponds to a vertical polarization axis?\n"))
+    
     
     # Set the polarization optics 
     for p in pol:
@@ -222,10 +225,13 @@ def reflection_experiment(lf, analyzer, hwp, mirror, PM, degrees, k_values, pixe
         for i in range(len(degrees)): 
            # Move the mirror and save image as csv 
            mirror.move_to(degrees[i]) 
-           filename = f"{np.round(PM.read_power()*1e6):.0f}uW-{p[0]}pol-ky={'-' if k_values[i] <0 else '+'}{np.abs(k_values[i]):.2f}_{sample}_{p[-1]}pol-{(lf.get_exposure_time()):.0f}ms"
+           filename = f"{params['pump wavelength']}nm-{np.round(PM.read_power()*1e6):.0f}uW-{p[0]}pol-ky={'-' if k_values[i] <0 else '+'}{np.abs(k_values[i]):.2f}_{sample}_{p[-1]}pol-{(lf.get_exposure_time()):.0f}ms"
            filename.replace('.', ',') # Because .csv files can't have '.' in the name
            lf.acquire_as_csv(filename, directory)
         
+        mirror.move_to(mirror_0) 
+    
+    return 
 # =============================================================================
 #         # After acquiring all the data you need, reset the mirror and clear the backup directory 
 #         # Not needed any more because lf.acquire_as_csv() handles it 
@@ -237,6 +243,92 @@ def reflection_experiment(lf, analyzer, hwp, mirror, PM, degrees, k_values, pixe
 #             except Exception as e:
 #                 print(f"Error deleting {file}: {e}")
 # =============================================================================
+
+def SHG_experiment(lf, analyzer, hwp, mirror, PM, degrees, k_values, pixels):
+        
+    input("If you ran pixel_deg_callibration(), then the slit should be positioned and the incident momentum should be k=0. \n" + 
+          "Check this, then press [Enter]") 
+    mirror_0 = mirror.get_position() 
+    
+    sample = input("What's the name of sample you're measuring SHG from? (no spaces)\n")
+    lf.set_center_wavelength(params['pump wavelength']/2) 
+    lf.set_exposure_time(500) 
+    
+    input("Set the exposure time you want, then press [Enter].")
+    lf.acquire_background() 
+    
+    # Two schools of thought: 
+        # Move the mirror on the outside loop because the polarization optics are doing larger movements, 
+            # and thus should be less sensitive to small errors over many repititions 
+        # Change the polarization on the outside loop because it will make the measurement faster 
+            # (waiting for one small mirror movements is faster than waiting for two large polarization movements) 
+
+    # This experiment measures the SHG intensity as a function of input momentum for s/p and p/p polarizations 
+    pol = ['s/p', 'p/p'] 
+    folder = rf"C:\Users\schul\data\Wes\GaN-SHG\{date.today()}"
+    
+    def make_unique_dir(base_path):
+        if not os.path.exists(base_path):
+            os.makedirs(base_path)
+            return base_path
+    
+        counter = 1
+        while True:
+            new_path = f"{base_path}({counter})"
+            if not os.path.exists(new_path):
+                os.makedirs(new_path)
+                return new_path
+            counter += 1
+    
+    directory = make_unique_dir(folder) 
+    # Save degrees, k_values, and pixels for later reference 
+    np.save(os.path.join(directory, 'degrees'), degrees)
+    np.save(os.path.join(directory, 'k_values'), k_values)
+    np.save(os.path.join(directory, 'pixels'), pixels) 
+    
+    # Ask for the zero value of the hwp, analyzer, and attenuator 
+    attenuator_zero = float(input("What degree setting on the attenuator mount corresponds to a vertical polarization axis?\n"))
+    hwp_zero = float(input("What degree setting on the hwp actuator corresponds to a vertical fast axis?\n"))
+    analyzer_zero = float(input("What degree setting on the analyzer actuator corresponds to a vertical polarization axis?\n")) 
+    
+    
+    # Set the polarization optics 
+    for p in pol:
+
+        attenuator_angle = float(input(f"Doing a {p}-pol measurement now; make sure the laser is on. What is the current degree setting of the attenuator?\n"))
+        attenuator_offset = attenuator_angle - attenuator_zero 
+        # As long as this is positive, it works as expected in the for loop (2026-02-27)  
+        # its probably also correct if negative, I just haven't checked that 
+        
+        # Set hwp 
+        if p[0] == 'p':
+            hwp.move_to(attenuator_offset / 2 + hwp_zero)
+        elif p[0] == 's':
+            hwp.move_to(attenuator_offset + (90 - attenuator_offset)/2 + hwp_zero)
+        else: 
+            print("Something isn't right in the hwp orientation")
+        
+        # Set analyzer 
+        if p[-1] == 'p':
+            analyzer.move_to(analyzer_zero) 
+        elif p[-1] == 's': 
+            analyzer.move_to(analyzer_zero + 90) 
+        else: 
+            print("Something isn't right in the analyzer orientation")
+            
+        
+        
+        
+        for i in range(len(degrees)): 
+           # Move the mirror and save image as csv 
+           mirror.move_to(degrees[i]) 
+           filename = f"{params['pump wavelength']}nm-{np.round(PM.read_power()*1e6):.0f}uW-{p[0]}pol-ky={'-' if k_values[i] <0 else '+'}{np.abs(k_values[i]):.2f}_{sample}_{p[-1]}pol-{(lf.get_exposure_time()):.0f}ms"
+           filename.replace('.', ',') # Because .csv files can't have '.' in the name
+           lf.acquire_as_csv(filename, directory)
+        
+        mirror.move_to(mirror_0) 
+
+    return 
 
 lf_params = {'experiment_name' : 'SHG', # This is the only required parameter to initial a LightField experiment 
              # These are all optional 
@@ -250,11 +342,15 @@ params = {"pump wavelength" : 1080, # (nm)
           "power beamsplitter p-pol R,T" : [0, 0]
           }
 
-#lf, analyzer, hwp, mirror, PM = setup(lf_params) 
-#input("Now you can do your experiment")
-#N_points = 10 # Number of points to move the mirror to and measure 
-#degrees, k_values, pixels = pixel_deg_callibration(lf, analyzer, hwp, mirror, PM, N_points) 
-#reflection_experiment(lf, analyzer, hwp, mirror, PM, degrees, k_values, pixels) 
-    
-#finish(lf, analyzer, hwp, mirror, PM) 
+
+lf, analyzer, hwp, mirror, PM = setup(lf_params) 
+N_points = int(input("How many points do you want to measure across k-space?\n")) # Number of points to move the mirror to and measure 
+input("Starting pixel_deg_callibration() next")
+degrees, k_values, pixels = pixel_deg_calibration(lf, analyzer, hwp, mirror, PM, N_points) 
+input("Starting reflection_experiment() next")
+reflection_experiment(lf, analyzer, hwp, mirror, PM, degrees, k_values, pixels) 
+input("Starting SHG_experiment() next")
+SHG_experiment(lf, analyzer, hwp, mirror, PM, degrees, k_values, pixels)
+input("Starting finish() next")
+finish(lf, analyzer, hwp, mirror, PM) 
 

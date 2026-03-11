@@ -56,7 +56,7 @@ class LightField:
               '(2) The aquisition time units are ms \n' + 
               '(3) The image orientation is how you\'d like \n' + 
               '(4) The temperature is locked at -70 C \n' + 
-              '(5) You\'ve checked the bfp focus and acquired / applied a background subtraction \n' + 
+              #'(5) You\'ve checked the bfp focus and acquired / applied a background subtraction \n' + 
               '\n Press [Enter] when ready to proceed')
         self.did_first_acquire = False # see acquire_as_csv() below 
     
@@ -205,6 +205,7 @@ class LightField:
         print("Image saved as " + filename + ".csv")
         
         # Delete the auto-saved file 
+        del image_set, frame, data_1d, data_2d
         Path.unlink(recent_file) 
 
     # Exit/close LightField 

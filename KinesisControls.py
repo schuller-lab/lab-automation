@@ -144,7 +144,10 @@ class K10CR2:
         self.disconnect()
 
 class PRMTZ8:
-
+    """
+    Automation wrapper for Thorlabs PRMTZ8 Rotation Stage 
+    """
+    
     def __init__(self, serial_number):
         self.serial = str(serial_number) 
         self.device = None
@@ -201,12 +204,12 @@ class PRMTZ8:
     def move_to(self, angle_deg, timeout=60000):
         if (angle_deg >= 0) & (angle_deg <= 360):
             self._ensure_connected()
-            print(f"Moving to {angle_deg} degrees...")
+            print(f"Moving to {angle_deg:0.3f} degrees...")
             self.device.MoveTo(Decimal(angle_deg), timeout)
             print("Move complete.")
         elif (angle_deg < 0) & (angle_deg >= -360):
             self._ensure_connected()
-            print(f"Moving to {angle_deg} degrees...")
+            print(f"Moving to {angle_deg:0.3f} degrees...")
             angle_deg += 360 
             self.device.MoveTo(Decimal(angle_deg), timeout)
             print("Move complete.")
@@ -215,7 +218,7 @@ class PRMTZ8:
 
     def move_relative(self, delta_deg, timeout=60000):
         self._ensure_connected()
-        print(f"Moving relative {delta_deg} degrees...") 
+        print(f"Moving relative {delta_deg:0.3f} degrees...") 
         self.device.MoveRelative(MotorDirection.Forward, Decimal(delta_deg), timeout)
         print("Move complete.")
     
