@@ -38,7 +38,10 @@ class LightField:
         # Launch LightField and set initial parameters 
         # First parameter is whether or not to display LightField GUI
         # Second parameter forces LF to load with no experiment 
-        self.lf = Automation(True, List[String]())
+        try: 
+            self.lf = Automation(True, List[String]()) 
+        except Exception as e: 
+            print(f"Failed to open LightField: {e}")
         self.experiment = self.lf.LightFieldApplication.Experiment
         self.file_manager = self.lf.LightFieldApplication.FileManager 
         

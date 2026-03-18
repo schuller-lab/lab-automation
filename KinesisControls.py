@@ -32,11 +32,12 @@ class K10CR2:
     Automation wrapper for Thorlabs K10CR2 Cage Rotator
     """
 
-    def __init__(self, serial_number, polling_interval=250):
+    def __init__(self, name, serial_number, polling_interval=250):
         self.serial = str(serial_number)
         self.polling_interval = polling_interval
         self.device = None
         self._connected = False
+        self.name = name 
         
     # -------------------------
     # Connection Handling
@@ -45,10 +46,14 @@ class K10CR2:
     def connect(self):
         print("Connecting...")
         DeviceManagerCLI.BuildDeviceList()
-
-        self.device = CageRotator.CreateCageRotator(self.serial)
-        self.device.Connect(self.serial)
-
+        
+        try: 
+            self.device = CageRotator.CreateCageRotator(self.serial)
+            self.device.Connect(self.serial) # If the device is connected in Kinesis GUI, connect() will fail here with DeviceNotReadyException 
+        except Exception as e: 
+            print(f"Failed to connect to {self.name}: {e}")
+            return None 
+        
         if not self.device.IsSettingsInitialized():
             self.device.WaitForSettingsInitialized(10000)
 
@@ -64,14 +69,18 @@ class K10CR2:
         )
 
         self._connected = True
-        print(f"K10CR2 {self.serial} connected.")
+        print(f"K10CR2 {self.serial} ({self.name}) connected.")
+        
+        self.vertical = float(input(f"What degree setting on {self.name} corresponds to a vertical axis (fast, transmission, etc.)\n")) 
+        self.home() 
+        self.move_to(self.vertical) 
 
     def disconnect(self):
         if self.device is not None:
             self.device.StopPolling()
             self.device.Disconnect()
             self._connected = False
-            print(f"K10CR2 {self.serial} disconnected.")
+            print(f"K10CR2 {self.serial} ({self.name}) disconnected.")
 
     # -------------------------
     # Motion Commands
@@ -148,10 +157,11 @@ class PRMTZ8:
     Automation wrapper for Thorlabs PRMTZ8 Rotation Stage 
     """
     
-    def __init__(self, serial_number):
+    def __init__(self, name, serial_number):
         self.serial = str(serial_number) 
         self.device = None
         self._connected = False 
+        self.name = name 
         
     # -------------------------
     # Connection Handling
@@ -159,14 +169,17 @@ class PRMTZ8:
     
     def connect(self):
         DeviceManagerCLI.BuildDeviceList()
-
-        self.device = KCubeDCServo.CreateKCubeDCServo(self.serial)
-        if self.device is None:
-            raise RuntimeError("Could not create device instance.")
-
-        print("Connecting...")
-        self.device.Connect(self.serial)
-
+        
+        try: 
+            self.device = KCubeDCServo.CreateKCubeDCServo(self.serial)
+            if self.device is None:
+                raise RuntimeError("Could not create device instance.")
+            print("Connecting...")
+            self.device.Connect(self.serial)
+        except Exception as e: 
+            print(f"Failed to connect to {self.name}: {e}")
+            return None 
+        
         if not self.device.IsSettingsInitialized():
             self.device.WaitForSettingsInitialized(10000)
 
@@ -183,6 +196,8 @@ class PRMTZ8:
         
         self._connected = True 
         print(f"PRMTZ8 {self.serial} connected.")
+        self.home() 
+        self.move_to(0) 
 
     def disconnect(self):
         if self.device is not None: 
