@@ -95,12 +95,12 @@ class K10CR2:
     def move_to(self, angle_deg, timeout=60000):
         if (angle_deg >= 0) & (angle_deg <= 360):
             self._ensure_connected()
-            print(f"Moving to {angle_deg} degrees...")
+            print(f"Moving {self.name} to {angle_deg} degrees...")
             self.device.MoveTo(Decimal(angle_deg), timeout)
             print("Move complete.")
         elif (angle_deg < 0) & (angle_deg >= -360):
             self._ensure_connected()
-            print(f"Moving to {angle_deg} degrees...")
+            print(f"Moving {self.name} to {angle_deg} degrees...")
             angle_deg += 360 
             self.device.MoveTo(Decimal(angle_deg), timeout)
             print("Move complete.")
@@ -109,7 +109,7 @@ class K10CR2:
 
     def move_relative(self, delta_deg, timeout=60000):
         self._ensure_connected()
-        print(f"Moving relative {delta_deg} degrees...")
+        print(f"Moving {self.name} relative {delta_deg} degrees...")
         self.device.MoveRelative(MotorDirection.Forward, Decimal(delta_deg), timeout)
         print("Move complete.")
 
@@ -139,7 +139,7 @@ class K10CR2:
 
     def _ensure_connected(self):
         if not self._connected:
-            raise RuntimeError("Device not connected. Call connect() first.")
+            raise RuntimeError("{self.name} not connected. Call connect() first.")
 
     # -------------------------
     # Context Manager Support
@@ -219,12 +219,12 @@ class PRMTZ8:
     def move_to(self, angle_deg, timeout=60000):
         if (angle_deg >= 0) & (angle_deg <= 360):
             self._ensure_connected()
-            print(f"Moving to {angle_deg:0.3f} degrees...")
+            print(f"Moving {self.name} to {angle_deg:0.3f} degrees...")
             self.device.MoveTo(Decimal(angle_deg), timeout)
             print("Move complete.")
         elif (angle_deg < 0) & (angle_deg >= -360):
             self._ensure_connected()
-            print(f"Moving to {angle_deg:0.3f} degrees...")
+            print(f"Moving {self.name} to {angle_deg:0.3f} degrees...")
             angle_deg += 360 
             self.device.MoveTo(Decimal(angle_deg), timeout)
             print("Move complete.")
@@ -233,7 +233,7 @@ class PRMTZ8:
 
     def move_relative(self, delta_deg, timeout=60000):
         self._ensure_connected()
-        print(f"Moving relative {delta_deg:0.3f} degrees...") 
+        print(f"Moving {self.name} relative {delta_deg:0.3f} degrees...") 
         self.device.MoveRelative(MotorDirection.Forward, Decimal(delta_deg), timeout)
         print("Move complete.")
     
@@ -262,7 +262,7 @@ class PRMTZ8:
 
     def _ensure_connected(self):
         if not self._connected:
-            raise RuntimeError("Device not connected. Call connect() first.")
+            raise RuntimeError("{self.name} not connected. Call connect() first.")
     
     # -------------------------
     # Context Manager Support
