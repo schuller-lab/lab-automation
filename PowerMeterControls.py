@@ -33,6 +33,7 @@ class PM100D:
         # Use newline termination (PM100D standard)
         self.instrument.write_termination = '\n'
         self.instrument.read_termination = '\n'
+        self.name = "power meter"
 
     def _find_instrument(self):
         """Auto-detect connected PM100D device."""
@@ -58,7 +59,7 @@ class PM100D:
         """Reset instrument."""
         self.instrument.write("*RST")
 
-    def set_wavelength(self, wavelength_nm):
+    def set_wavelength(self, wavelength_nm:int):
         """Set measurement wavelength (nm)."""
         self.instrument.write(f"SENS:CORR:WAV {wavelength_nm}")
 

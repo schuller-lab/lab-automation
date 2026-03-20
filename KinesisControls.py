@@ -32,12 +32,13 @@ class K10CR2:
     Automation wrapper for Thorlabs K10CR2 Cage Rotator
     """
 
-    def __init__(self, name, serial_number, polling_interval=250):
+    def __init__(self, name, serial_number, polling_interval=250, timeout=60000):
         self.serial = str(serial_number)
         self.polling_interval = polling_interval
         self.device = None
         self._connected = False
         self.name = name 
+        self.timeout = timeout 
         
     # -------------------------
     # Connection Handling
@@ -71,7 +72,12 @@ class K10CR2:
         self._connected = True
         print(f"K10CR2 {self.serial} ({self.name}) connected.")
         
-        self.vertical = float(input(f"What degree setting on {self.name} corresponds to a vertical axis (fast, transmission, etc.)\n")) 
+        while True: 
+            try: 
+                self.vertical = float(input(f"What degree setting on {self.name} corresponds to a vertical axis (fast, transmission, etc.)\n")) 
+                break 
+            except: 
+                print("Invalid . Try again.") 
         self.home() 
         self.move_to(self.vertical) 
 
@@ -86,31 +92,31 @@ class K10CR2:
     # Motion Commands
     # -------------------------
 
-    def home(self, timeout=60000):
+    def home(self, ):
         self._ensure_connected()
         print("Homing...")
-        self.device.Home(timeout)
+        self.device.Home(self.timeout)
         print("Home complete.")
 
-    def move_to(self, angle_deg, timeout=60000):
+    def move_to(self, angle_deg:float):
         if (angle_deg >= 0) & (angle_deg <= 360):
             self._ensure_connected()
             print(f"Moving {self.name} to {angle_deg} degrees...")
-            self.device.MoveTo(Decimal(angle_deg), timeout)
+            self.device.MoveTo(Decimal(angle_deg), self.timeout)
             print("Move complete.")
         elif (angle_deg < 0) & (angle_deg >= -360):
             self._ensure_connected()
             print(f"Moving {self.name} to {angle_deg} degrees...")
             angle_deg += 360 
-            self.device.MoveTo(Decimal(angle_deg), timeout)
+            self.device.MoveTo(Decimal(angle_deg), self.timeout)
             print("Move complete.")
         else: 
             print("Please enter an angle value betwen -360 and +360, inclusive.")
 
-    def move_relative(self, delta_deg, timeout=60000):
+    def move_relative(self, delta_deg:float):
         self._ensure_connected()
         print(f"Moving {self.name} relative {delta_deg} degrees...")
-        self.device.MoveRelative(MotorDirection.Forward, Decimal(delta_deg), timeout)
+        self.device.MoveRelative(MotorDirection.Forward, Decimal(delta_deg), self.timeout)
         print("Move complete.")
 
     def move_continuous(self, direction="forward"):
@@ -139,7 +145,7 @@ class K10CR2:
 
     def _ensure_connected(self):
         if not self._connected:
-            raise RuntimeError("{self.name} not connected. Call connect() first.")
+            raise RuntimeError(f"{self.name} not connected. Call connect() first.")
 
     # -------------------------
     # Context Manager Support
@@ -157,12 +163,12 @@ class PRMTZ8:
     Automation wrapper for Thorlabs PRMTZ8 Rotation Stage 
     """
     
-    def __init__(self, name, serial_number):
+    def __init__(self, name, serial_number, timeout=60000):
         self.serial = str(serial_number) 
         self.device = None
         self._connected = False 
         self.name = name 
-        
+        self.timeout = timeout 
     # -------------------------
     # Connection Handling
     # -------------------------
@@ -210,31 +216,31 @@ class PRMTZ8:
     # Motion Commands
     # -------------------------
     
-    def home(self, timeout=60000):
+    def home(self):
         self._ensure_connected() 
         print("Homing...")
-        self.device.Home(timeout)
+        self.device.Home(self.timeout)
         print("Home complete") 
 
-    def move_to(self, angle_deg, timeout=60000):
+    def move_to(self, angle_deg:float):
         if (angle_deg >= 0) & (angle_deg <= 360):
             self._ensure_connected()
             print(f"Moving {self.name} to {angle_deg:0.3f} degrees...")
-            self.device.MoveTo(Decimal(angle_deg), timeout)
+            self.device.MoveTo(Decimal(angle_deg), self.timeout)
             print("Move complete.")
         elif (angle_deg < 0) & (angle_deg >= -360):
             self._ensure_connected()
             print(f"Moving {self.name} to {angle_deg:0.3f} degrees...")
             angle_deg += 360 
-            self.device.MoveTo(Decimal(angle_deg), timeout)
+            self.device.MoveTo(Decimal(angle_deg), self.timeout)
             print("Move complete.")
         else: 
             print("Please enter an angle value betwen -360 and +360, inclusive.")
 
-    def move_relative(self, delta_deg, timeout=60000):
+    def move_relative(self, delta_deg:float):
         self._ensure_connected()
         print(f"Moving {self.name} relative {delta_deg:0.3f} degrees...") 
-        self.device.MoveRelative(MotorDirection.Forward, Decimal(delta_deg), timeout)
+        self.device.MoveRelative(MotorDirection.Forward, Decimal(delta_deg), self.timeout)
         print("Move complete.")
     
     def move_continuous(self, direction="forward"):
@@ -262,7 +268,7 @@ class PRMTZ8:
 
     def _ensure_connected(self):
         if not self._connected:
-            raise RuntimeError("{self.name} not connected. Call connect() first.")
+            raise RuntimeError(f"{self.name} not connected. Call connect() first.")
     
     # -------------------------
     # Context Manager Support

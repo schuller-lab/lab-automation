@@ -15,6 +15,7 @@ from System.Runtime.Remoting import RemotingException
 import numpy as np 
 import time 
 from pathlib import Path 
+import psutil 
 
 sys.path.append(os.environ['LIGHTFIELD_ROOT'])
 sys.path.append(os.environ['LIGHTFIELD_ROOT']+'\\AddInViews')
@@ -33,25 +34,35 @@ from SpectrometerWavelengthRanges import wavelength_ranges
 
     
 class LightField:
+    _instance = None 
     # Params is a dict of values used to set up LightField 
     def __init__(self, params):
+        self.params = params
+        self.name = 'LightField' 
+        return 
+    
+    def connect(self, show_GUI=True):
         # Launch LightField and set initial parameters 
         # First parameter is whether or not to display LightField GUI
         # Second parameter forces LF to load with no experiment 
-        try: 
-            self.lf = Automation(True, List[String]()) 
-        except Exception as e: 
-            print(f"Failed to open LightField: {e}")
+        if LightField._instance is not None: 
+            print("LightField already initialized in this Python process.")
+            return 
+        if is_lightfield_running():
+            print("LightField is already running outside this script.")
+            return 
+        self.lf = Automation(show_GUI, List[String]()) 
         self.experiment = self.lf.LightFieldApplication.Experiment
         self.file_manager = self.lf.LightFieldApplication.FileManager 
+        LightField._instance = self 
         
         # Load experiment using built-in member 
-        self.experiment.Load(params['experiment_name'])
+        self.experiment.Load(self.params['experiment_name'])
         
         # Optionally, initialize a few settings using methods from this class 
-        if 'exposure_time' in params: self.set_exposure_time(params['exposure_time'])
-        if 'center_wavelength' in params: self.set_center_wavelength(params['center_wavelength'])
-        if 'grating' in params: self.set_grating(params['grating']) 
+        if 'exposure_time' in self.params: self.set_exposure_time(self.params['exposure_time'])
+        if 'center_wavelength' in self.params: self.set_center_wavelength(self.params['center_wavelength'])
+        if 'grating' in self.params: self.set_grating(self.params['grating']) 
         
         # Check that temp is locked and everything else is correct 
         input('Please check that: \n' +
@@ -63,7 +74,7 @@ class LightField:
               '\n Press [Enter] when ready to proceed')
         self.did_first_acquire = False # see acquire_as_csv() below 
     
-    def set_value(self, setting, value):
+    def _set_value(self, setting, value):
         # Check for existence before setting
         if self.experiment.Exists(setting):
             self.experiment.SetValue(setting, value)
@@ -71,7 +82,7 @@ class LightField:
             print("The setting" + str(setting) + " doesn\'t exist")
             return False 
     
-    def get_value(self, setting):
+    def _get_value(self, setting):
         # Check for existence before setting
         if self.experiment.Exists(setting):
             return self.experiment.GetValue(setting) 
@@ -79,34 +90,34 @@ class LightField:
             print("The setting" + str(setting) + " doesn\'t exist")
             return False 
     
-    def set_exposure_time(self, time):
-        if self.camera_found():  
-            self.set_value(CameraSettings.ShutterTimingExposureTime, float(time)) 
+    def set_exposure_time(self, time:int):
+        if self._camera_found():  
+            self._set_value(CameraSettings.ShutterTimingExposureTime, float(time)) 
             print("The exposure time has been set to " + str(self.get_exposure_time()))
             
     def get_exposure_time(self):
-        if self.camera_found():  
-            return self.get_value(CameraSettings.ShutterTimingExposureTime) 
+        if self._camera_found():  
+            return self._get_value(CameraSettings.ShutterTimingExposureTime) 
     
-    def set_center_wavelength(self, wavelength):
-        if self.spectrometer_found(): 
-            self.set_value(SpectrometerSettings.GratingCenterWavelength, float(wavelength))
+    def set_center_wavelength(self, wavelength:int):
+        if self._spectrometer_found(): 
+            self._set_value(SpectrometerSettings.GratingCenterWavelength, float(wavelength))
             print("The center wavelength has been set to " + str(self.get_center_wavelength()))
             
     def get_center_wavelength(self):
-        if self.spectrometer_found(): 
-            return self.get_value(SpectrometerSettings.GratingCenterWavelength)
+        if self._spectrometer_found(): 
+            return self._get_value(SpectrometerSettings.GratingCenterWavelength)
     
     def set_grating(self, grating):
-        if self.spectrometer_found(): 
-           self.set_value(SpectrometerSettings.GratingSelected, grating)
+        if self._spectrometer_found(): 
+           self._set_value(SpectrometerSettings.GratingSelected, grating)
            print("The grating has been set to " + str(self.get_grating()))
            
     def get_grating(self):
-        if self.spectrometer_found(): 
-           return self.get_value(SpectrometerSettings.GratingSelected)
+        if self._spectrometer_found(): 
+           return self._get_value(SpectrometerSettings.GratingSelected)
 
-    def camera_found(self):
+    def _camera_found(self):
         # Check if a camera is connected 
         for device in self.experiment.ExperimentDevices: 
             if (device.Type == DeviceType.Camera):
@@ -115,7 +126,7 @@ class LightField:
         print("Camera not found. Please add a camera and try again.") 
         return False 
     
-    def spectrometer_found(self):
+    def _spectrometer_found(self):
         # Check is a spectrometer is connected 
         for device in  self.experiment.ExperimentDevices: 
             if (device.Type == DeviceType.Spectrometer):
@@ -214,5 +225,11 @@ class LightField:
     # Exit/close LightField 
     def close(self):
         self.lf.Dispose() 
+        LightField._instance = None 
         print("LightField has been closed.")
 
+def is_lightfield_running():
+    for p in psutil.process_iter(['name']):
+        if p.info['name'] == 'LightField.exe':
+            return True
+    return False
