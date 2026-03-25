@@ -87,14 +87,21 @@ def finish():
         print("Aborting finish().")
         return 
     
-    # Call this function when the experiment is done to close everything 
-    devices['attenuator'].disconnect() 
-    devices['hwp'].disconnect()
-    devices['analyzer'].disconnect() 
-    devices['mirror'].disconnect() 
-    devices['PM'].disconnect() 
-    devices['lf'].close() 
-    
+    while True: 
+        answer = input("Are you sure you want to disconnect all devices? (y or n)")
+        if answer == 'y': 
+            # Call this function when the experiment is done to close everything 
+            devices['attenuator'].disconnect() 
+            devices['hwp'].disconnect()
+            devices['analyzer'].disconnect() 
+            devices['mirror'].disconnect() 
+            devices['PM'].disconnect() 
+            devices['lf'].close() 
+            return 
+        if answer == 'n':
+            print("Aborting finish()")
+            break
+
     return 
 
 def set_power_and_pol(power, pol):
