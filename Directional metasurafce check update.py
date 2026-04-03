@@ -11,11 +11,9 @@ from matplotlib.colors import LogNorm
 # User settings
 # ---------------------------
 
-<<<<<<< HEAD
+
 DATA_FOLDER = r"C:\Users\schul\data\Wes\reflection-experiments\2026-04-02(2)"  # change to your folder path if needed
-=======
-DATA_FOLDER = "meta-GaN-rf-pp"  # change to your folder path if needed
->>>>>>> b529f689d4ce1ce3d84a9b79c3421b6ad748601a
+
 FILE_GLOB = os.path.join(DATA_FOLDER, "*ky=*.csv")
 
 # Accept ky from filename like ky=+0,02 or ky=-0.10
@@ -250,10 +248,7 @@ cmap.set_under("black")
 # ---------------------------
 
 plt.figure(figsize=(9, 6))
-<<<<<<< HEAD
 
-=======
->>>>>>> b529f689d4ce1ce3d84a9b79c3421b6ad748601a
 im = plt.imshow(
     masked_Z,
     origin='lower',
@@ -269,7 +264,6 @@ im = plt.imshow(
     interpolation='bicubic'
 )
 
-<<<<<<< HEAD
 # im = plt.imshow(
 #     Z,
 #     origin='lower',
@@ -286,17 +280,15 @@ im = plt.imshow(
 #     interpolation='bicubic'
 # )
 
-=======
->>>>>>> b529f689d4ce1ce3d84a9b79c3421b6ad748601a
+
 plt.xlabel("Expected ky")
 plt.ylabel("Reflected ky")
 plt.title("2D Map: Intensity vs Expected ky and Reflected ky")
 cbar = plt.colorbar(im)
 cbar.set_label("Average photon counts (log scale)")
-<<<<<<< HEAD
+
 # cbar.set_label("Average photon counts")
-=======
->>>>>>> b529f689d4ce1ce3d84a9b79c3421b6ad748601a
+
 
 plt.tight_layout()
 
