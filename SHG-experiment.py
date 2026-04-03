@@ -112,7 +112,7 @@ def set_power_and_pol(power, pol):
         value, units = power.split() 
         value = float(value) 
     except Exception as e: 
-        print('Error parsing desired power. Should be a string of the form "##.## mW" or "##.## %" (whitespace required).')
+        print('Error parsing desired power. Should be a string of the form "##.## mW" or "##.## %" (whitespace required, decimal optional).')
         print(f"Full error: {e}")
         return 0
     if not (units == 'mW' or units == '%'): 
@@ -172,7 +172,7 @@ def pixel_deg_calibration(N_points:int):
     
     # Set polarization optics to s/s and mirror to 0
     set_power_and_pol('0 %', 's')
-    devices['attenuator'].move_to(devices['attenuator'].vertical) 
+    devices['analyzer'].move_to(devices['analyzer'].vertical + 90) 
     devices['mirror'].move_to(0) 
     
     devices['lf'].set_center_wavelength(0)
