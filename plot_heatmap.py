@@ -11,26 +11,13 @@ from matplotlib.colors import LogNorm
 # User settings
 # ---------------------------
 
-
-DATA_FOLDER = os.path.join(os.getcwd(), 'metasurface_pp_SHG') # r"C:\Users\schul\data\Wes\reflection-experiments\2026-04-02(2)"  # change to your folder path if needed
+data_name = 'DSP_pp_reflection'
+DATA_FOLDER = os.path.join(os.getcwd(), data_name) # r"C:\Users\schul\data\Wes\reflection-experiments\2026-04-02(2)"  # change to your folder path if needed
 
 FILE_GLOB = os.path.join(DATA_FOLDER, "*ky=*.csv")
 
 # Accept ky from filename like ky=+0,02 or ky=-0.10
 KY_PATTERN = re.compile(r"(?:ky|k)=([+-]?\d+[.,]\d+|[+-]?\d+)")
-
-# =============================================================================
-# print("\nProvide calibration for ky -> y conversion.")
-# print("Enter the y pixel corresponding to ky = +1 and ky = -1.\n")
-# 
-# while True:
-#     try:
-#         y_pos1 = float(input("Enter y pixel for ky = +1 (e.g. 200): ").strip())
-#         y_neg1 = float(input("Enter y pixel for ky = -1 (e.g. 800): ").strip())
-#         break
-#     except ValueError:
-#         print("Invalid input. Please enter numeric values.\n")
-# =============================================================================
 
 ky_cal_data = np.load(os.path.join(DATA_FOLDER, "k_values.npy")) 
 pixel_cal_data = np.load(os.path.join(DATA_FOLDER, "pixels.npy")) 
@@ -237,9 +224,6 @@ profiles_sorted = [profiles[i] for i in order]
 # intensity = averaged photon counts
 Z = np.column_stack(profiles_sorted)
 
-# Smooth a little for a polished look
-#Z = gaussian_filter(Z, sigma=(1.2, 0.6))
-
 positive = Z[Z > 0]
 if positive.size == 0:
     raise SystemExit("No positive intensity values to plot.")
@@ -292,19 +276,18 @@ im = plt.imshow(
 )
 
 
-plt.xlabel("Expected ky")
-plt.ylabel("Reflected ky")
-plt.title("2D Map: Intensity vs Expected ky and Reflected ky")
+plt.xlabel("Pump ky")
+plt.ylabel("Output ky")
+plt.title("Intensity of pump vs output, " + data_name)
 cbar = plt.colorbar(im)
 #cbar.set_label("Average photon counts (log scale)")
 
-cbar.set_label("Average photon counts")
-
+cbar.set_label("Counts") 
 
 plt.tight_layout()
 
-out_png = os.path.join(DATA_FOLDER, "2D_map_expected_ky_reflected_ky_full.png")
-plt.savefig(out_png, dpi=150)
+out_png = os.path.join(DATA_FOLDER, data_name + ".png") 
+plt.savefig(out_png, dpi=300)
 plt.show()
 
 print(f"Saved 2D map to: {out_png}")
