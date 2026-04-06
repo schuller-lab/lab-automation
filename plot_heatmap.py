@@ -11,8 +11,8 @@ from matplotlib.colors import LogNorm
 # User settings
 # ---------------------------
 
-
-DATA_FOLDER = os.path.join(os.getcwd(), '2026-04-06(2)') # r"C:\Users\schul\data\Wes\reflection-experiments\2026-04-02(2)"  # change to your folder path if needed
+data_name = 'DSP_pp_reflection'
+DATA_FOLDER = os.path.join(os.getcwd(), data_name) # r"C:\Users\schul\data\Wes\reflection-experiments\2026-04-02(2)"  # change to your folder path if needed
 
 FILE_GLOB = os.path.join(DATA_FOLDER, "*ky=*.csv")
 
@@ -313,8 +313,8 @@ cbar.set_label(cbar_label)
 
 plt.tight_layout()
 
-out_png = os.path.join(DATA_FOLDER, "2D_map_expected_ky_reflected_ky_full.png")
-plt.savefig(out_png, dpi=150)
+out_png = os.path.join(DATA_FOLDER, data_name + ".png") 
+plt.savefig(out_png, dpi=300)
 plt.show()
 
 print(f"Saved 2D map to: {out_png}")
