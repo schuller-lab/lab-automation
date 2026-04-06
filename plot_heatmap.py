@@ -12,33 +12,18 @@ from matplotlib.colors import LogNorm
 # ---------------------------
 
 
-DATA_FOLDER = r"C:\Users\schul\data\Wes\reflection-experiments\2026-04-02(2)"  # change to your folder path if needed
+DATA_FOLDER = os.path.join(os.getcwd(), 'metasurface_SHG_pp') # r"C:\Users\schul\data\Wes\reflection-experiments\2026-04-02(2)"  # change to your folder path if needed
 
 FILE_GLOB = os.path.join(DATA_FOLDER, "*ky=*.csv")
 
 # Accept ky from filename like ky=+0,02 or ky=-0.10
 KY_PATTERN = re.compile(r"(?:ky|k)=([+-]?\d+[.,]\d+|[+-]?\d+)")
 
-print("\nProvide calibration for ky -> y conversion.")
-print("Enter the y pixel corresponding to ky = +1 and ky = -1.\n")
+ky_cal_data = np.load(os.path.join(DATA_FOLDER, "k_values.npy")) 
+pixel_cal_data = np.load(os.path.join(DATA_FOLDER, "pixels.npy")) 
 
-while True:
-    try:
-        y_pos1 = float(input("Enter y pixel for ky = +1 (e.g. 200): ").strip())
-        y_neg1 = float(input("Enter y pixel for ky = -1 (e.g. 800): ").strip())
-        break
-    except ValueError:
-        print("Invalid input. Please enter numeric values.\n")
-
-while True:
-    try:
-        avg_width = int(input("Enter averaging width around x = 512 (e.g. 5): ").strip())
-        if avg_width <= 0:
-            print("Averaging width must be a positive integer.\n")
-            continue
-        break
-    except ValueError:
-        print("Invalid input. Please enter an integer.\n")
+y_pos1 = pixel_cal_data[np.argmin(np.abs(ky_cal_data - 1))]
+y_neg1 = pixel_cal_data[np.argmin(np.abs(ky_cal_data - -1))]
 
 # Linear relation: y = m*ky + c
 m_ky_to_y = (y_pos1 - y_neg1) / 2.0
@@ -53,6 +38,17 @@ def y_to_ky(y_value):
     if m_ky_to_y == 0:
         raise RuntimeError("Invalid calibration: slope is zero.")
     return (y_value - c_ky_to_y) / m_ky_to_y
+
+while True:
+    try:
+        avg_width = int(input("Enter averaging width around x = 512 (e.g. 5): ").strip())
+        if avg_width <= 0:
+            print("Averaging width must be a positive integer.\n")
+            continue
+        break
+    except ValueError:
+        print("Invalid input. Please enter an integer.\n")
+
 
 # Fixed x center
 CENTER_X = 512
@@ -90,7 +86,18 @@ def load_counts_matrix(csv_file):
 
     return counts
 
-def select_x_window(n_cols, center=CENTER_X, width=avg_width):
+def find_x_center_from_counts(counts):
+    """
+    Find the x-center for one CSV file by summing each photon-count column
+    and choosing the column with the largest total.
+    """
+    if counts.ndim != 2 or counts.shape[1] == 0:
+        raise RuntimeError("Counts array is empty or not 2D.")
+
+    column_sums = np.nansum(counts, axis=0)
+    return int(np.nanargmax(column_sums))
+
+def select_x_window(n_cols, center, width=avg_width):
     """
     Select an x-window around the given center, clipped to valid bounds.
     """
@@ -123,7 +130,8 @@ def get_reflected_profile(csv_file):
     """
     For one CSV file:
     - load the counts matrix
-    - average over a small x-window around x = 512
+    - find the x-center from the column with the largest summed intensity
+    - average over a small x-window around that x-center
     - convert each y pixel to reflected ky using the calibration
     - keep only reflected ky in [-1.3, +1.3]
     - sort by reflected ky so the axis is in the correct order
@@ -132,9 +140,10 @@ def get_reflected_profile(csv_file):
     counts = load_counts_matrix(csv_file)
     n_rows, n_cols = counts.shape
 
-    x0, x1 = select_x_window(n_cols, CENTER_X, avg_width)
+    x_center = find_x_center_from_counts(counts)
+    x0, x1 = select_x_window(n_cols, x_center, avg_width)
 
-    # average over a small x-window around 512
+    # average over a small x-window around the file-specific x center
     vertical_profile = np.nanmean(counts[:, x0:x1 + 1], axis=1)
 
     # clean any possible NaNs
@@ -228,9 +237,6 @@ profiles_sorted = [profiles[i] for i in order]
 # intensity = averaged photon counts
 Z = np.column_stack(profiles_sorted)
 
-# Smooth a little for a polished look
-Z = gaussian_filter(Z, sigma=(1.2, 0.6))
-
 positive = Z[Z > 0]
 if positive.size == 0:
     raise SystemExit("No positive intensity values to plot.")
@@ -238,57 +244,72 @@ if positive.size == 0:
 vmin = max(np.percentile(positive, 2), 1e-6)
 vmax = np.percentile(positive, 99.7)
 
-masked_Z = np.ma.masked_less_equal(Z, 0)
-cmap = plt.cm.inferno.copy()
-cmap.set_bad("black")
-cmap.set_under("black")
+cmap = plt.cm.viridis_r.copy()
 
 # ---------------------------
 # Plot
 # ---------------------------
 
+# ---------------------------
+# Ask user for plotting scale
+# ---------------------------
+
+while True:
+    scale_choice = input("Do you want to plot in log scale? (y/n): ").strip().lower()
+    if scale_choice in ['y', 'n']:
+        break
+    print("Invalid input. Please enter 'y' or 'n'.")
+
+use_log = (scale_choice == 'y')
+
 plt.figure(figsize=(9, 6))
 
-im = plt.imshow(
-    masked_Z,
-    origin='lower',
-    aspect='auto',
-    extent=[
-        expected_ky_sorted.min(),
-        expected_ky_sorted.max(),
-        reflected_ky_axis_common.min(),
-        reflected_ky_axis_common.max()
-    ],
-    cmap=cmap,
-    norm=LogNorm(vmin=vmin, vmax=vmax),
-    interpolation='bicubic'
-)
+if use_log:
+    Z_plot = np.clip(Z, a_min=1e-9, a_max=None)
 
-# im = plt.imshow(
-#     Z,
-#     origin='lower',
-#     aspect='auto',
-#     extent=[
-#         expected_ky_sorted.min(),
-#         expected_ky_sorted.max(),
-#         reflected_ky_axis_common.min(),
-#         reflected_ky_axis_common.max()
-#     ],
-#     cmap=cmap,
-#     vmin=0,
-#     vmax=Z.max(),
-#     interpolation='bicubic'
-# )
+    im = plt.imshow(
+        Z_plot,
+        origin='lower',
+        aspect='auto',
+        extent=[
+            expected_ky_sorted.min(),
+            expected_ky_sorted.max(),
+            reflected_ky_axis_common.min(),
+            reflected_ky_axis_common.max()
+        ],
+        cmap=cmap,
+        norm=LogNorm(vmin=Z_plot.min(), vmax=Z_plot.max()),
+        interpolation='bicubic'
+    )
 
+    cbar_label = "Average photon counts (log scale)"
 
+else:
+    im = plt.imshow(
+        Z,
+        origin='lower',
+        aspect='auto',
+        extent=[
+            expected_ky_sorted.min(),
+            expected_ky_sorted.max(),
+            reflected_ky_axis_common.min(),
+            reflected_ky_axis_common.max()
+        ],
+        cmap=cmap,
+        vmin=0,
+        vmax=Z.max(),
+        interpolation='bicubic'
+    )
+
+    cbar_label = "Average photon counts"
+
+# Labels and colorbar
 plt.xlabel("Expected ky")
 plt.ylabel("Reflected ky")
 plt.title("2D Map: Intensity vs Expected ky and Reflected ky")
+
 cbar = plt.colorbar(im)
-cbar.set_label("Average photon counts (log scale)")
-
-# cbar.set_label("Average photon counts")
-
+cbar.set_label(cbar_label)
 
 plt.tight_layout()
 
