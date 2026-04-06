@@ -12,33 +12,31 @@ from matplotlib.colors import LogNorm
 # ---------------------------
 
 
-DATA_FOLDER = r"C:\Users\schul\data\Wes\reflection-experiments\2026-04-02(2)"  # change to your folder path if needed
+DATA_FOLDER = os.path.join(os.getcwd(), 'metasurface_pp_SHG') # r"C:\Users\schul\data\Wes\reflection-experiments\2026-04-02(2)"  # change to your folder path if needed
 
 FILE_GLOB = os.path.join(DATA_FOLDER, "*ky=*.csv")
 
 # Accept ky from filename like ky=+0,02 or ky=-0.10
 KY_PATTERN = re.compile(r"(?:ky|k)=([+-]?\d+[.,]\d+|[+-]?\d+)")
 
-print("\nProvide calibration for ky -> y conversion.")
-print("Enter the y pixel corresponding to ky = +1 and ky = -1.\n")
+# =============================================================================
+# print("\nProvide calibration for ky -> y conversion.")
+# print("Enter the y pixel corresponding to ky = +1 and ky = -1.\n")
+# 
+# while True:
+#     try:
+#         y_pos1 = float(input("Enter y pixel for ky = +1 (e.g. 200): ").strip())
+#         y_neg1 = float(input("Enter y pixel for ky = -1 (e.g. 800): ").strip())
+#         break
+#     except ValueError:
+#         print("Invalid input. Please enter numeric values.\n")
+# =============================================================================
 
-while True:
-    try:
-        y_pos1 = float(input("Enter y pixel for ky = +1 (e.g. 200): ").strip())
-        y_neg1 = float(input("Enter y pixel for ky = -1 (e.g. 800): ").strip())
-        break
-    except ValueError:
-        print("Invalid input. Please enter numeric values.\n")
+ky_cal_data = np.load(os.path.join(DATA_FOLDER, "k_values.npy")) 
+pixel_cal_data = np.load(os.path.join(DATA_FOLDER, "pixels.npy")) 
 
-while True:
-    try:
-        avg_width = int(input("Enter averaging width around x = 512 (e.g. 5): ").strip())
-        if avg_width <= 0:
-            print("Averaging width must be a positive integer.\n")
-            continue
-        break
-    except ValueError:
-        print("Invalid input. Please enter an integer.\n")
+y_pos1 = pixel_cal_data[np.argmin(np.abs(ky_cal_data - 1))]
+y_neg1 = pixel_cal_data[np.argmin(np.abs(ky_cal_data - -1))]
 
 # Linear relation: y = m*ky + c
 m_ky_to_y = (y_pos1 - y_neg1) / 2.0
@@ -53,6 +51,17 @@ def y_to_ky(y_value):
     if m_ky_to_y == 0:
         raise RuntimeError("Invalid calibration: slope is zero.")
     return (y_value - c_ky_to_y) / m_ky_to_y
+
+while True:
+    try:
+        avg_width = int(input("Enter averaging width around x = 512 (e.g. 5): ").strip())
+        if avg_width <= 0:
+            print("Averaging width must be a positive integer.\n")
+            continue
+        break
+    except ValueError:
+        print("Invalid input. Please enter an integer.\n")
+
 
 # Fixed x center
 CENTER_X = 512
@@ -229,7 +238,7 @@ profiles_sorted = [profiles[i] for i in order]
 Z = np.column_stack(profiles_sorted)
 
 # Smooth a little for a polished look
-Z = gaussian_filter(Z, sigma=(1.2, 0.6))
+#Z = gaussian_filter(Z, sigma=(1.2, 0.6))
 
 positive = Z[Z > 0]
 if positive.size == 0:
@@ -249,23 +258,9 @@ cmap.set_under("black")
 
 plt.figure(figsize=(9, 6))
 
-im = plt.imshow(
-    masked_Z,
-    origin='lower',
-    aspect='auto',
-    extent=[
-        expected_ky_sorted.min(),
-        expected_ky_sorted.max(),
-        reflected_ky_axis_common.min(),
-        reflected_ky_axis_common.max()
-    ],
-    cmap=cmap,
-    norm=LogNorm(vmin=vmin, vmax=vmax),
-    interpolation='bicubic'
-)
-
+# =============================================================================
 # im = plt.imshow(
-#     Z,
+#     masked_Z,
 #     origin='lower',
 #     aspect='auto',
 #     extent=[
@@ -275,19 +270,35 @@ im = plt.imshow(
 #         reflected_ky_axis_common.max()
 #     ],
 #     cmap=cmap,
-#     vmin=0,
-#     vmax=Z.max(),
+#     norm=LogNorm(vmin=vmin, vmax=vmax),
 #     interpolation='bicubic'
 # )
+# =============================================================================
+
+im = plt.imshow(
+     Z,
+     origin='lower',
+     aspect='auto',
+     extent=[
+         expected_ky_sorted.min(),
+         expected_ky_sorted.max(),
+         reflected_ky_axis_common.min(),
+         reflected_ky_axis_common.max()
+     ],
+     cmap=cmap,
+     vmin=0,
+     vmax=Z.max(),
+     interpolation='bicubic'
+)
 
 
 plt.xlabel("Expected ky")
 plt.ylabel("Reflected ky")
 plt.title("2D Map: Intensity vs Expected ky and Reflected ky")
 cbar = plt.colorbar(im)
-cbar.set_label("Average photon counts (log scale)")
+#cbar.set_label("Average photon counts (log scale)")
 
-# cbar.set_label("Average photon counts")
+cbar.set_label("Average photon counts")
 
 
 plt.tight_layout()
