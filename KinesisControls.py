@@ -74,7 +74,7 @@ class K10CR2:
         
         while True: 
             try: 
-                self.vertical = float(input(f"What degree setting on {self.name} corresponds to a vertical axis (fast, transmission, etc.)\n")) 
+                self.vertical = float(input(f"What degree setting on {self.name} corresponds to a vertical axis (fast, transmission, etc.)\n> ")) 
                 break 
             except: 
                 print("Invalid . Try again.") 

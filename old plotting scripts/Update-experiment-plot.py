@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 # User inputs & calibration
 # ---------------------------
 
-DATA_FOLDER=r'C:\Users\schul\data\Wes\reflection-experiments\2026-03-02(1)'
+DATA_FOLDER=r'C:\Users\schul\data\Wes\reflection-experiments\2026-03-16(2200)'
 
 print("\nNext, provide two calibration points for the ky -> y mapping.")
 print("You will be asked for the y pixel corresponding to ky=+1 and ky=-1.")
