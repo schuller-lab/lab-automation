@@ -297,7 +297,7 @@ def reflection_experiment(power, pol_in, pol_out):
             print("Please don't use any whitespace. Use '-' or '_' instead. Try again.") 
         
     devices['lf'].set_center_wavelength(params['pump wavelength']) 
-    devices['lf'].set_exposure_time(10) 
+    #devices['lf'].set_exposure_time(10) 
     
     while True: 
         result = input("Have you already set the exposure time you want? (y or n) \n> ")
@@ -377,7 +377,7 @@ def SHG_experiment(power, pol_in, pol_out):
             print("Please don't use any whitespace. Use '-' or '_' instead. Try again.") 
     
     devices['lf'].set_center_wavelength(params['pump wavelength']//2) 
-    devices['lf'].set_exposure_time(500) 
+    #devices['lf'].set_exposure_time(500) 
     
     while True: 
         result = input("Have you already set the exposure time you want? (y or n) \n> ")
@@ -518,6 +518,7 @@ def methods_menu(device_choice):
                     return raw  # string or no type
             except ValueError:
                 print("Invalid input. Please try again.")
+                raw = input("> ")
     
     while True: 
         print(f'\n{device_choice.name} methods menu:')
