@@ -389,7 +389,7 @@ def SHG_experiment(power, pol_in, pol_out):
     
     devices['lf'].acquire_background() 
     
-    folder = rf"C:\Users\schul\data\Wes\GaN-SHG\{date.today()}"
+    date_folder = rf"C:\Users\schul\data\Wes\GaN-SHG\{date.today()}"
     
     def make_unique_dir(base_path):
         if not os.path.exists(base_path):
@@ -403,7 +403,7 @@ def SHG_experiment(power, pol_in, pol_out):
                 return new_path
             counter += 1
     
-    directory = make_unique_dir(folder) 
+    directory = make_unique_dir(os.path.join(date_folder, sample + '_' + pol_in + pol_out + '_' + 'SHG')) 
     # Save degrees, k_values, and pixels for later reference 
     np.save(os.path.join(directory, 'degrees'), degrees)
     np.save(os.path.join(directory, 'k_values'), k_values)
