@@ -12,7 +12,7 @@ from matplotlib.colors import LogNorm
 # ---------------------------
 
 data_name = 'DSP_pp_reflection'
-DATA_FOLDER = os.path.join(os.getcwd(), data_name) # r"C:\Users\schul\data\Wes\reflection-experiments\2026-04-02(2)"  # change to your folder path if needed
+DATA_FOLDER = os.path.join(os.getcwd(), data_name) # Make sure cwd is date folder 
 
 FILE_GLOB = os.path.join(DATA_FOLDER, "*ky=*.csv")
 
@@ -270,7 +270,7 @@ if use_log:
     im = plt.imshow(
         Z_plot,
         origin='lower',
-        aspect='auto',
+        aspect=1,
         extent=[
             expected_ky_sorted.min(),
             expected_ky_sorted.max(),
@@ -319,7 +319,7 @@ out_png = os.path.join(os.getcwd(), data_name + ".png")
 plt.savefig(out_png, dpi=300)
 plt.show()
 
-print(f"Saved 2D map to: {out_png}")
+print(f"Saved image to: {out_png}")
 
 if bad_files:
     print("\nSome files were skipped or had errors:")
