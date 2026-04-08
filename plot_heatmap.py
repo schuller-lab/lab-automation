@@ -11,7 +11,7 @@ from matplotlib.colors import LogNorm
 # User settings
 # ---------------------------
 
-data_name = 'DSP_pp_reflection'
+data_name = 'SanUID033126-900SP_sp_SHG'
 DATA_FOLDER = os.path.join(os.getcwd(), data_name) # Make sure cwd is date folder 
 
 FILE_GLOB = os.path.join(DATA_FOLDER, "*ky=*.csv")
@@ -309,6 +309,7 @@ else:
 plt.xlabel("Input ky")
 plt.ylabel("Output ky")
 plt.title("Counts versus input and output momentum, " + data_name)
+plt.grid(True)
 
 cbar = plt.colorbar(im)
 cbar.set_label(cbar_label)
