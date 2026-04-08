@@ -41,7 +41,7 @@ def y_to_ky(y_value):
 
 while True:
     try:
-        avg_width = int(input("Enter averaging half-width around x = 512 (e.g. 15): ").strip())
+        avg_width = int(input("Enter averaging width (e.g. 15): ").strip())
         if avg_width <= 0:
             print("Averaging width must be a positive integer.\n")
             continue
