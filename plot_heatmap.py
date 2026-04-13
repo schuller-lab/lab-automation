@@ -11,9 +11,10 @@ from matplotlib.colors import LogNorm
 # User settings
 # ---------------------------
 
-data_name = 'SanUID033126-900SP_sp_SHG'
+data_name = 'Larry-case5-900sp-180rotate_sp_SHG'
 DATA_FOLDER = os.path.join(os.getcwd(), data_name) # Make sure cwd is date folder 
 
+#DATA_FOLDER=r"C:\Users\schul\data\Wes\GaN-SHG\2026-04-08\meta_noQW_ps_ps_SHG"
 FILE_GLOB = os.path.join(DATA_FOLDER, "*ky=*.csv")
 
 # Accept ky from filename like ky=+0,02 or ky=-0.10
@@ -41,7 +42,7 @@ def y_to_ky(y_value):
 
 while True:
     try:
-        avg_width = int(input("Enter averaging width (e.g. 15): ").strip())
+        avg_width = int(input("Enter averaging width (e.g. 30): ").strip())
         if avg_width <= 0:
             print("Averaging width must be a positive integer.\n")
             continue
@@ -51,7 +52,7 @@ while True:
 
 
 # Fixed x center
-CENTER_X = 512
+#CENTER_X = 512
 
 # The reflected ky range you want to keep
 REFLECTED_KY_MIN = -1.3
