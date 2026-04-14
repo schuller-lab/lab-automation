@@ -428,6 +428,18 @@ def SHG_experiment(power, pol_in, pol_out):
     
     return 
 
+def switch_to_1080():
+    devices['lf'].set_center_wavelength(1080)
+    devices['lf'].set_exposure_time(10) 
+    print("Ready to measure 1080 nm")
+    return 
+
+def switch_to_540():
+    devices['lf'].set_center_wavelength(540)
+    devices['lf'].set_exposure_time(1000) 
+    print("Ready to measure 540 nm")
+    return 
+
 ###############################################################################
 # Now here's the menu functions 
 ###############################################################################
