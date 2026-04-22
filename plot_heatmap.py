@@ -332,7 +332,7 @@ elif plotstyle == 'column norm':
 # Labels and colorbar
 plt.xlabel("Input ky")
 plt.ylabel("Output ky")
-plt.title("Counts versus input and output momentum \n, " + data_name)
+#plt.title("Counts versus input and output momentum \n, " + data_name)
 plt.grid(True)
 
 cbar = plt.colorbar(im)
