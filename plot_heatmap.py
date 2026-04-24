@@ -11,8 +11,7 @@ from matplotlib.colors import LogNorm
 # User settings
 # ---------------------------
 
-
-data_name = 'Larry-case5-900sp_pp_SHG'
+data_name = 'case5-thinDSP_pp_SHG'
 DATA_FOLDER = os.path.join(os.getcwd(), data_name) # Make sure cwd is date folder 
 
 #DATA_FOLDER=r"C:\Users\schul\data\Wes\GaN-SHG\2026-04-08\meta_noQW_ps_ps_SHG"
@@ -43,7 +42,7 @@ def y_to_ky(y_value):
 
 while True:
     try:
-        avg_width = int(input("Enter averaging width (e.g. 30): ").strip())
+        avg_width = 30 #int(input("Enter averaging width (e.g. 30): ").strip())
         if avg_width <= 0:
             print("Averaging width must be a positive integer.\n")
             continue
@@ -95,9 +94,10 @@ def find_x_center_from_counts(counts):
     """
     if counts.ndim != 2 or counts.shape[1] == 0:
         raise RuntimeError("Counts array is empty or not 2D.")
-
-    column_sums = np.nansum(counts, axis=0)
-    return int(np.nanargmax(column_sums))
+    
+    # Don't look at the first twelve columns or last twelve columns 
+    column_sums = np.nansum(counts[:,12:1012], axis=0) 
+    return int(np.nanargmax(column_sums)) + 12
 
 def select_x_window(n_cols, center, width=avg_width):
     """
@@ -255,9 +255,9 @@ cmap = plt.cm.viridis_r.copy()
 # ---------------------------
 # Ask user for plotting scale
 # ---------------------------
-
+ 
 while True:
-    plotstyle =input('Please enter a plot style ("log", "counts", or "column norm" \n> ')
+    plotstyle = "column norm"#input('Please enter a plot style ("log", "counts", or "column norm" \n> ')
     if plotstyle in ['log', 'counts', 'column norm']:
         break
     print("Invalid input. Please enter 'y' or 'n'.")
