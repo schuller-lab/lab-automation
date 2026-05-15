@@ -80,6 +80,14 @@ def check_devices():
         print(f"check_devices() failed with error: {e}")
         return False 
 
+def reconnect_lf():
+    """Reconnect to LightField after a crash — without touching Kinesis or PM devices.
+    After this, re-apply your background correction in the GUI before continuing."""
+    if devices['lf'] is None:
+        print("LightField was never initialized. Run setup() instead.")
+        return
+    devices['lf'].reconnect()
+
 def finish(): 
     
     # Check devices 
@@ -270,13 +278,15 @@ def pixel_deg_calibration(N_points:int):
 
 ###############################################################################
 # Reflection experiment (pump reflection)
-def reflection_experiment(power, pol_in, pol_out):
+def reflection_experiment(power, pol_in, pol_out, resume_from=0):
     """
-    Measures reflected pump intensity across k-space for s/s and p/p polarizations.
+    Measures reflected pump intensity across E(k)-space.
+    resume_from: index into degrees[] to start from (use after a crash to skip 
+                 already-acquired points). Defaults to 0 (full run).
     """
     # Check devices 
     if not check_devices():
-        print("Aborting finish().")
+        print("Not all devices connected. Aborting reflection_experiment().")
         return 
     
     # Vet pol_out (power and pol_in are verified in set_power_and_pol())
@@ -297,6 +307,7 @@ def reflection_experiment(power, pol_in, pol_out):
             print("Please don't use any whitespace. Use '-' or '_' instead. Try again.") 
         
     devices['lf'].set_center_wavelength(params['pump wavelength']) 
+    input("Make sure the slit is in place. Then press [Enter] to continue.")
     #devices['lf'].set_exposure_time(10) 
     
     while True: 
@@ -337,8 +348,9 @@ def reflection_experiment(power, pol_in, pol_out):
         devices['analyzer'].move_to(devices['analyzer'].vertical) 
     # The case where pol_out is neither 's' nor 'p' is handled earlier in this function 
     
-    for i in range(len(degrees)): 
+    for i in range(resume_from, len(degrees)): 
        # Move the mirror and save image as csv 
+       print(f"Acquiring point {i+1}/{len(degrees)} (index {i})")
        devices['mirror'].move_to(degrees[i]) 
        filename = f"{params['pump wavelength']}nm-{power_pol}-ky={'-' if k_values[i] <0 else '+'}{np.abs(k_values[i]):.2f}_{sample}_{pol_out}pol-{(devices['lf'].get_exposure_time()):.0f}ms"
        filename = filename.replace('.', ',') # Because .csv files can't have '.' in the name
@@ -350,23 +362,25 @@ def reflection_experiment(power, pol_in, pol_out):
 
 ###############################################################################
 # SHG experiment 
-def SHG_experiment(power, pol_in, pol_out):
+def SHG_experiment(power, pol_in, pol_out, resume_from=0):
     """
-    Measures SHG response across k-space for s/p and p/p polarizations.
+    Measures SHG response across E(k)-space.
+    resume_from: index into degrees[] to start from (use after a crash to skip 
+                 already-acquired points). Defaults to 0 (full run).
     """
     # Check devices 
     if not check_devices():
-        print("Aborting finish().")
+        print("Not all devices connected. Aborting SHG_experiment().")
         return 
     
     # Vet pol_out (power and pol_in are verified in set_power_and_pol())
     if not (pol_out == 's' or pol_out == 'p'):
-        print('Output polarization should be "s" or "p". Aborting reflection_experiment().')
+        print('Output polarization should be "s" or "p". Aborting SHG_experiment().')
         return
     
     global degrees, k_values, pixels 
     if len(degrees) == 0:
-        print("You need to run pixel/k/degree calibration first. Aborting reflection_experiment().")
+        print("You need to run pixel/k/degree calibration first. Aborting SHG_experiment().")
         return 
     
     while True: 
@@ -377,6 +391,7 @@ def SHG_experiment(power, pol_in, pol_out):
             print("Please don't use any whitespace. Use '-' or '_' instead. Try again.") 
     
     devices['lf'].set_center_wavelength(params['pump wavelength']//2) 
+    input("Make sure the slit is in place. Then press [Enter] to continue.")
     #devices['lf'].set_exposure_time(500) 
     
     while True: 
@@ -384,7 +399,7 @@ def SHG_experiment(power, pol_in, pol_out):
         if result == 'y': 
             break 
         if result == 'n': 
-            print("Aborting reflection_experiment() so you can set the exposure time you want")
+            print("Aborting SHG_experiment() so you can set the exposure time you want")
             return 
     
     devices['lf'].acquire_background() 
@@ -417,8 +432,9 @@ def SHG_experiment(power, pol_in, pol_out):
         devices['analyzer'].move_to(devices['analyzer'].vertical) 
     # The case where pol_out is neither 's' nor 'p' is handled earlier in this function
     
-    for i in range(len(degrees)): 
+    for i in range(resume_from, len(degrees)): 
        # Move the mirror and save image as csv 
+       print(f"Acquiring point {i+1}/{len(degrees)} (index {i})")
        devices['mirror'].move_to(degrees[i]) 
        filename = f"{params['pump wavelength']}nm-{power_pol}-ky={'-' if k_values[i] <0 else '+'}{np.abs(k_values[i]):.2f}_{sample}_{pol_out}pol-{(devices['lf'].get_exposure_time()):.0f}ms"
        filename = filename.replace('.', ',') # Because .csv files can't have '.' in the name
@@ -427,6 +443,89 @@ def SHG_experiment(power, pol_in, pol_out):
     devices['mirror'].move_to(0) 
     
     return 
+
+# =============================================================================
+# ###############################################################################
+# # bfp experiment (pump reflection)
+# def bfp_experiment(power, pol_in, pol_out):
+#     """
+#     Measures reflected or SHG intensity across the bfp for 
+#     """
+#     # Check devices 
+#     if not check_devices():
+#         print("Not all devices connected. Aborting bfp_experiment().")
+#         return 
+#     
+#     # Vet pol_out (power and pol_in are verified in set_power_and_pol())
+#     if not (pol_out == 's' or pol_out == 'p'):
+#         print('Output polarization should be "s" or "p". Aborting bfp_experiment().')
+#         return 
+#     
+#     global degrees, k_values, pixels 
+#     if len(degrees) == 0:
+#         print("You need to run pixel/k/degree calibration first. Aborting bfp_experiment().")
+#         return 
+#     
+#     while True: 
+#         sample = input("What's the name of the sample you're measuring reflection from? (no spaces)\n> ")
+#         if " " not in sample: 
+#             break
+#         else: 
+#             print("Please don't use any whitespace. Use '-' or '_' instead. Try again.") 
+#         
+#     devices['lf'].set_center_wavelength(0) 
+#     input("Make sure the slit is removed. Then press [Enter] to continue.")
+#     #devices['lf'].set_exposure_time(10) 
+#     
+#     while True: 
+#         result = input("Have you already set the exposure time you want? (y or n) \n> ")
+#         if result == 'y': 
+#             break 
+#         if result == 'n': 
+#             print("Aborting bfp_experiment() so you can set the exposure time you want")
+#             return 
+#     
+#     devices['lf'].acquire_background() 
+#     
+#     date_folder = rf"C:\Users\schul\data\Wes\bfp-experiments\{date.today()}"
+#     
+#     def make_unique_dir(base_path):
+#         if not os.path.exists(base_path):
+#             os.makedirs(base_path)
+#             return base_path
+#         counter = 1
+#         while True:
+#             new_path = f"{base_path}({counter})"
+#             if not os.path.exists(new_path):
+#                 os.makedirs(new_path)
+#                 return new_path
+#             counter += 1
+#     
+#     directory = make_unique_dir(os.path.join(date_folder, sample + '_' + pol_in + pol_out + '_' + 'bfp')) 
+#     # Save degrees, k_values, and pixels for later reference 
+#     np.save(os.path.join(directory, 'degrees'), degrees)
+#     np.save(os.path.join(directory, 'k_values'), k_values)
+#     np.save(os.path.join(directory, 'pixels'), pixels) 
+#     
+#     # Set the polarization optics 
+#     power_pol = set_power_and_pol(power, pol_in)
+#     if pol_out == 's': 
+#         devices['analyzer'].move_to(devices['analyzer'].vertical + 90) 
+#     elif pol_out == 'p': 
+#         devices['analyzer'].move_to(devices['analyzer'].vertical) 
+#     # The case where pol_out is neither 's' nor 'p' is handled earlier in this function 
+#     
+#     for i in range(len(degrees)): 
+#        # Move the mirror and save image as csv 
+#        devices['mirror'].move_to(degrees[i]) 
+#        filename = f"{params['pump wavelength']}nm-{power_pol}-ky={'-' if k_values[i] <0 else '+'}{np.abs(k_values[i]):.2f}_{sample}_{pol_out}pol-{(devices['lf'].get_exposure_time()):.0f}ms"
+#        filename = filename.replace('.', ',') # Because .csv files can't have '.' in the name
+#        devices['lf'].acquire_as_csv(filename, directory)
+#     
+#     devices['mirror'].move_to(0) 
+# 
+#     return 
+# =============================================================================
 
 def switch_to_1080():
     devices['lf'].set_center_wavelength(1080)
@@ -451,12 +550,15 @@ def main_menu():
                                              input("Enter polarization: \n> ")),
             '5' : lambda : reflection_experiment(input("Enter the input power: \n> "), 
                                                                      input("Enter the input polarization: \n> "), 
-                                                                     input("Enter the output polarization: \n> ")), 
+                                                                     input("Enter the output polarization: \n> "),
+                                                                     int(input("Resume from index (0 for full run): \n> ") or 0)), 
             '6' : lambda : SHG_experiment(input("Enter the input power: \n> "), 
                                                         input("Enter the input polarization: \n> "), 
-                                                        input("Enter the output polarization: \n> ")), 
+                                                        input("Enter the output polarization: \n> "),
+                                                        int(input("Resume from index (0 for full run): \n> ") or 0)), 
             '7' : devices_menu, 
-            '8' : finish,
+            '8' : reconnect_lf,
+            '9' : finish,
             }
     while True: 
         print('\nMain menu:')
@@ -467,7 +569,8 @@ def main_menu():
               "(5) reflection experiment \n" +
               "(6) SHG experiment \n" +
               "(7) see individual devices \n" + 
-              "(8) close all devices \n" + 
+              "(8) reconnect LightField (after crash) \n" +
+              "(9) close all devices \n" + 
               "(q) exit program"
               )
         choice = input("> ")
@@ -592,5 +695,4 @@ if not ('devices' in globals() or 'devices' in locals()):
 
 degrees = []
 k_values = []
-pixels = [] 
-
+pixels = []

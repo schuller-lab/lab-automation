@@ -11,10 +11,10 @@ from matplotlib.colors import LogNorm
 # User settings
 # ---------------------------
 
-data_name = 'Larry-case5-900sp-180rotate_sp_SHG'
-DATA_FOLDER = os.path.join(os.getcwd(), data_name) # Make sure cwd is date folder 
+data_name = 'meta_flip_QW_pp_R'
+# DATA_FOLDER = os.path.join(os.getcwd(), data_name) # Make sure cwd is date folder 
 
-#DATA_FOLDER=r"C:\Users\schul\data\Wes\GaN-SHG\2026-04-08\meta_noQW_ps_ps_SHG"
+DATA_FOLDER=r"C:\Users\schul\data\Wes\GaN-SHG\2026-04-28\GaN_thin_film_old_SP_sp_SHG"
 FILE_GLOB = os.path.join(DATA_FOLDER, "*ky=*.csv")
 
 # Accept ky from filename like ky=+0,02 or ky=-0.10

@@ -51,6 +51,20 @@ class LightField:
         if is_lightfield_running():
             print("LightField is already running outside this script.")
             return 
+        self._launch(show_GUI)
+        
+        # Check that temp is locked and everything else is correct 
+        input('Please check that: \n' +
+              '(1) The camera and the spectrometer are connected in the Devices tab \n' + 
+              '(2) The aquisition time units are ms \n' + 
+              '(3) The image orientation is how you\'d like \n' + 
+              '(4) The temperature is locked at -70 C \n' + 
+              #'(5) You\'ve checked the bfp focus and acquired / applied a background subtraction \n' + 
+              '\n Press [Enter] when ready to proceed')
+
+    def _launch(self, show_GUI=True):
+        """Internal: create Automation object, load experiment, apply params. 
+        Does NOT show setup prompts — used by both connect() and reconnect()."""
         self.lf = Automation(show_GUI, List[String]()) 
         self.experiment = self.lf.LightFieldApplication.Experiment
         self.file_manager = self.lf.LightFieldApplication.FileManager 
@@ -64,15 +78,29 @@ class LightField:
         if 'center_wavelength' in self.params: self.set_center_wavelength(self.params['center_wavelength'])
         if 'grating' in self.params: self.set_grating(self.params['grating']) 
         
-        # Check that temp is locked and everything else is correct 
-        input('Please check that: \n' +
-              '(1) The camera and the spectrometer are connected in the Devices tab \n' + 
-              '(2) The aquisition time units are ms \n' + 
-              '(3) The image orientation is how you\'d like \n' + 
-              '(4) The temperature is locked at -70 C \n' + 
-              #'(5) You\'ve checked the bfp focus and acquired / applied a background subtraction \n' + 
-              '\n Press [Enter] when ready to proceed')
-        self.did_first_acquire = False # see acquire_as_csv() below 
+        self.did_first_acquire = False # see acquire_as_csv() below
+
+    def reconnect(self, show_GUI=True):
+        """Call this after LightField crashes. Kills any orphaned LightField 
+        process, clears the stale singleton, and re-launches without the full 
+        setup checklist. You do NOT need to reconnect Kinesis / PM devices."""
+        # Kill any orphaned LightField.exe left over from the crash
+        killed = False
+        for p in psutil.process_iter(['name', 'pid']):
+            if p.info['name'] == 'LightField.exe':
+                p.kill()
+                killed = True
+                print(f"Killed orphaned LightField.exe (PID {p.info['pid']})")
+        if killed:
+            time.sleep(3)  # Give Windows a moment to release COM objects
+
+        # Clear the stale singleton so _launch() is allowed to run
+        LightField._instance = None
+
+        # Re-launch without prompts
+        print("Reconnecting to LightField...")
+        self._launch(show_GUI)
+        print("LightField reconnected. Remember to re-apply background correction if needed.")
     
     def _set_value(self, setting, value):
         # Check for existence before setting
