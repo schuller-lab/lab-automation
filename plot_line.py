@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # --- parameters for ROI and folder ---
-DATA_FOLDER = r"C:\Users\schul\data\Wes\reflection-experiments\2026-04-02(2)"  
+DATA_FOLDER = r"C:\Users\schul\data\Wes\GaN-SHG\2026-04-27\GaN_thinfilm2_pp_SHG"  
 FILE_GLOB = os.path.join(DATA_FOLDER, "*ky=*_*ms.csv")  # matches e.g. ...ky=+0.10_...csv
 CENTER_X = 512
 
