@@ -63,7 +63,17 @@ def setup():
     # Connect to the power meter
     devices['PM'] = PM100D('USB0::4883::32888::P0007396::0::INSTR') 
     
+    # Ask for pump wavelength 
+    set_pump_wavelength() 
+    
     return  
+
+def set_pump_wavelength():
+    while True: 
+        try: 
+            params["pump wavelength"] = input("What is the pump wavelength? (in nm) \n***Note: you still need to change the laser manually*** \n>")
+        except ValueError(): 
+            print("Only enter numbers please.")
 
 def check_devices():
     # Calls a 'get' method on each device to check that they're connected 
@@ -127,9 +137,9 @@ def set_power_and_pol(power, pol):
         print('Input power should be a string of the form "##.## mW" or "##.## %" (whitespace required). Aborting set_power_and_pol().')
         return 0
     
-    # pol should be 's' or 'p' (this can be expanded later)
-    if not (pol == 's' or pol == 'p'):
-        print('Input polarization should be "s" or "p". Aborting set_power_and_pol().')
+    # pol should be 's', 'p', or '45' (this can be expanded later)
+    if not (pol == 's' or pol == 'p' or pol=='45'):
+        print('Input polarization should be "s", "p", or "45". Aborting set_power_and_pol().')
         return 0 
     
     # Check devices 
@@ -147,9 +157,11 @@ def set_power_and_pol(power, pol):
     # Set hwp 
     attenuator_offset = devices['attenuator'].get_position() - devices['attenuator'].vertical 
     if pol == 's':
-        devices['hwp'].move_to(attenuator_offset + (90 - attenuator_offset)/2 + devices['hwp'].vertical)
+        devices['hwp'].move_to((90 + attenuator_offset) / 2 + devices['hwp'].vertical)
     elif pol == 'p': 
-        devices['hwp'].move_to(attenuator_offset / 2 + devices['hwp'].vertical) 
+        devices['hwp'].move_to((00 + attenuator_offset) / 2 + devices['hwp'].vertical) 
+    elif pol == '45':
+        devices['hwp'].move_to((45 + attenuator_offset) / 2 + devices['hwp'].vertical) 
     
     # Data for the following calculation comes from:
         # https://www.thorlabs.com/uv-fused-silica-broadband-plate-beamsplitters-coating-700---1100-nm?pn=BSN11&tabName=Overview
@@ -306,8 +318,8 @@ def reflection_experiment(power, pol_in, pol_out, resume_from=0):
         else: 
             print("Please don't use any whitespace. Use '-' or '_' instead. Try again.") 
         
-    devices['lf'].set_center_wavelength(params['pump wavelength']) 
-    input("Make sure the slit is in place. Then press [Enter] to continue.")
+    #devices['lf'].set_center_wavelength(params['pump wavelength']) 
+    input("Make sure the slit & center wavelength are set as you want them. Then press [Enter] to continue.")
     #devices['lf'].set_exposure_time(10) 
     
     while True: 
@@ -390,8 +402,8 @@ def SHG_experiment(power, pol_in, pol_out, resume_from=0):
         else: 
             print("Please don't use any whitespace. Use '-' or '_' instead. Try again.") 
     
-    devices['lf'].set_center_wavelength(params['pump wavelength']//2) 
-    input("Make sure the slit is in place. Then press [Enter] to continue.")
+    #devices['lf'].set_center_wavelength(params['pump wavelength']//2) 
+    input("Make sure the slit & center wavelength are set as you want them. Then press [Enter] to continue.")
     #devices['lf'].set_exposure_time(500) 
     
     while True: 
@@ -558,7 +570,8 @@ def main_menu():
                                                         int(input("Resume from index (0 for full run): \n> ") or 0)), 
             '7' : devices_menu, 
             '8' : reconnect_lf,
-            '9' : finish,
+            '9' : set_pump_wavelength, 
+            '10' : finish,
             }
     while True: 
         print('\nMain menu:')
@@ -570,7 +583,8 @@ def main_menu():
               "(6) SHG experiment \n" +
               "(7) see individual devices \n" + 
               "(8) reconnect LightField (after crash) \n" +
-              "(9) close all devices \n" + 
+              "(9) set pump wavelength \n" +
+              "(10) close all devices \n" + 
               "(q) exit program"
               )
         choice = input("> ")
