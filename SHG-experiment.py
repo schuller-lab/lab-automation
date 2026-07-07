@@ -75,7 +75,7 @@ def set_pump_wavelength():
             break 
         except ValueError(): 
             print("Only enter numbers please.")
-    print(f"Pump wavelength set to {params['pump wavelength']} nm (variable name, not laser setting)")
+    print(f"Pump wavelength set to {params['pump wavelength']} nm (file name, not laser setting or refractive index)")
         
 def check_devices():
     # Calls a 'get' method on each device to check that they're connected 
@@ -334,7 +334,7 @@ def reflection_experiment(power, pol_in, pol_out, resume_from=0):
     
     devices['lf'].acquire_background() 
     
-    date_folder = rf"C:\Users\schul\data\Wes\reflection-experiments\{date.today()}"
+    date_folder = rf"C:\Users\schul\data\Wes\automated-reflection\{date.today()}"
     
     def make_unique_dir(base_path):
         if not os.path.exists(base_path):
@@ -418,7 +418,7 @@ def SHG_experiment(power, pol_in, pol_out, resume_from=0):
     
     devices['lf'].acquire_background() 
     
-    date_folder = rf"C:\Users\schul\data\Wes\GaN-SHG\{date.today()}"
+    date_folder = rf"C:\Users\schul\data\Wes\automated-SHG\{date.today()}"
     
     def make_unique_dir(base_path):
         if not os.path.exists(base_path):
