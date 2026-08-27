@@ -7,6 +7,8 @@ four-lobed bright pattern seen on the CCD (via LightField, SHG experiment)
 is aligned with the pixel grid -- lobes at +x, -x, +y, -y -- i.e. the
 pattern's rotation angle (mod 90 deg) is driven to ~0.
 
+I think this works because the DMSP650R in the filter wheel has a slightly polarization-dependenct transmission. 
+
 Usage:
     C:\\Users\\schul\\anaconda3\\envs\\lab-controls\\python.exe align_output_polarizer.py
 
