@@ -129,12 +129,56 @@ for base_name, dir_list in groups.items():
             """
             if counts.ndim != 2 or counts.shape[1] == 0:
                 raise RuntimeError("Counts array is empty or not 2D.")
-            
-            # Don't look at the first twelve columns or last twelve columns 
-            skip_at_both_ends = 490 # Don't consider the first N or last N columns 
-            column_sums = np.nansum(counts[:, skip_at_both_ends : 1024 - skip_at_both_ends], axis=0) 
+
+            # Don't look at the first twelve columns or last twelve columns
+            skip_at_both_ends = 490 # Don't consider the first N or last N columns
+            column_sums = np.nansum(counts[:, skip_at_both_ends : 1024 - skip_at_both_ends], axis=0)
             return int(np.nanargmax(column_sums)) + skip_at_both_ends
-        
+
+        CENTER_POLY_DEGREE = 2  # 1 = linear, 2 = quadratic drift trend
+
+        def fit_smoothed_x_centers(ky, raw_centers, degree=CENTER_POLY_DEGREE, outlier_px_floor=2.0,
+                                    outlier_sigma=3.0, max_iter=3):
+            """
+            Replace each file's raw (single-pixel argmax) peak x-column with a
+            robust, low-order polynomial fit of x-center vs. expected ky.
+
+            The raw per-file argmax center (find_x_center_from_counts) is a
+            hard, single-pixel decision on a column-sum with no noise
+            robustness. For high-SNR channels it tracks the real drift
+            cleanly, but for low-SNR channels individual files' argmax can
+            jump several pixels off the smooth trend - a single noisy column
+            hijacking the whole averaging window for that one file. Since the
+            underlying drift is physically expected to be a slow, smooth
+            function of scan position (not a per-frame random jump), fitting
+            a degree-1/2 polynomial and using *that* trajectory to place the
+            window filters out exactly this failure mode while still
+            tracking genuine drift. Iteratively re-fits with sigma-clipping
+            (MAD-based) so a handful of outlier files don't bias the fit.
+            """
+            ky = np.asarray(ky, dtype=float)
+            raw_centers = np.asarray(raw_centers, dtype=float)
+            if len(ky) < degree + 2:
+                # Not enough points to fit meaningfully - fall back to the
+                # raw per-file centers unchanged.
+                return raw_centers.copy(), np.ones(len(ky), dtype=bool)
+            keep = np.ones(len(ky), dtype=bool)
+            coeffs = np.polyfit(ky, raw_centers, degree)
+            for _ in range(max_iter):
+                fitted = np.polyval(coeffs, ky)
+                resid = raw_centers - fitted
+                mad = np.median(np.abs(resid[keep] - np.median(resid[keep])))
+                robust_scale = max(1.4826 * mad, 0.5)
+                threshold = max(outlier_px_floor, outlier_sigma * robust_scale)
+                new_keep = np.abs(resid) <= threshold
+                if new_keep.sum() < degree + 2 or np.array_equal(new_keep, keep):
+                    keep = new_keep
+                    break
+                keep = new_keep
+                coeffs = np.polyfit(ky[keep], raw_centers[keep], degree)
+            fitted = np.polyval(coeffs, ky)
+            return fitted, keep
+
         def select_x_window(n_cols, center, width=avg_width):
             """
             Select an x-window around the given center, clipped to valid bounds.
@@ -164,21 +208,18 @@ for base_name, dir_list in groups.items():
                 return None
             return float(m.group(1).replace(',', '.'))
         
-        def get_reflected_profile(csv_file):
+        def get_reflected_profile(counts, x_center):
             """
-            For one CSV file:
-            - load the counts matrix
-            - find the x-center from the column with the largest summed intensity
+            For one already-loaded counts matrix, given its x_center (see
+            fit_smoothed_x_centers for how that's chosen):
             - average over a small x-window around that x-center
             - convert each y pixel to reflected ky using the calibration
             - keep only reflected ky in [-1.3, +1.3]
             - sort by reflected ky so the axis is in the correct order
             - return reflected ky axis and intensity profile
             """
-            counts = load_counts_matrix(csv_file)
             n_rows, n_cols = counts.shape
-        
-            x_center = find_x_center_from_counts(counts)
+
             x0, x1 = select_x_window(n_cols, x_center, avg_width)
         
             # average over a small x-window around the file-specific x center
@@ -222,32 +263,63 @@ for base_name, dir_list in groups.items():
         file_list = sorted(glob.glob(FILE_GLOB))
         if not file_list:
             raise SystemExit(f"No CSV files found in {DATA_FOLDER}")
-        
-        expected_ky_vals = []
-        profiles = []
-        reflected_ky_axis_common = None
+
         bad_files = []
-        
+
+        # Pass 1: load every file once and get its raw (single-pixel argmax)
+        # peak x-column, caching the counts matrix for pass 2.
+        loaded_ky_vals = []
+        counts_cache = []
+        raw_centers = []
         for f in file_list:
             basename = os.path.basename(f)
-        
+
             expected_ky = extract_expected_ky(basename)
             if expected_ky is None:
                 continue
-        
+
             try:
-                reflected_ky_axis, profile = get_reflected_profile(f)
+                counts = load_counts_matrix(f)
+                raw_center = find_x_center_from_counts(counts)
             except Exception as e:
                 bad_files.append((basename, str(e)))
                 continue
-        
+
+            loaded_ky_vals.append(expected_ky)
+            counts_cache.append(counts)
+            raw_centers.append(raw_center)
+
+        if not counts_cache:
+            raise SystemExit("No valid data extracted.")
+
+        # Fit a robust low-order polynomial of x-center vs. expected ky, to
+        # replace each file's raw argmax with a smoothed trajectory (see
+        # fit_smoothed_x_centers docstring for why).
+        smoothed_centers, kept = fit_smoothed_x_centers(loaded_ky_vals, raw_centers)
+        n_rejected = int((~kept).sum())
+        if n_rejected:
+            print(f"    [x-center fit] {data_name}: degree={CENTER_POLY_DEGREE}, "
+                  f"rejected {n_rejected}/{len(kept)} outlier file(s) from the fit "
+                  "(raw argmax jumped off the smooth drift trend)")
+
+        # Pass 2: extract each file's profile using the smoothed center.
+        expected_ky_vals = []
+        profiles = []
+        reflected_ky_axis_common = None
+        for expected_ky, counts, center in zip(loaded_ky_vals, counts_cache, smoothed_centers):
+            try:
+                reflected_ky_axis, profile = get_reflected_profile(counts, int(round(center)))
+            except Exception as e:
+                bad_files.append((f"ky={expected_ky}", str(e)))
+                continue
+
             # Use the first valid file as the common reflected ky axis
             if reflected_ky_axis_common is None:
                 reflected_ky_axis_common = reflected_ky_axis
                 profiles.append(profile)
                 expected_ky_vals.append(expected_ky)
                 continue
-        
+
             # If needed, interpolate onto the first file's reflected ky axis
             if len(reflected_ky_axis) != len(reflected_ky_axis_common) or not np.allclose(reflected_ky_axis, reflected_ky_axis_common):
                 profile = np.interp(
@@ -257,10 +329,10 @@ for base_name, dir_list in groups.items():
                     left=profile[0],
                     right=profile[-1]
                 )
-        
+
             expected_ky_vals.append(expected_ky)
             profiles.append(profile)
-        
+
         if not profiles:
             raise SystemExit("No valid data extracted.")
         
@@ -371,6 +443,8 @@ for base_name, dir_list in groups.items():
                     for i, kx in enumerate(expected_ky_sorted)
                 ])
                 specular_results[polarization] = (expected_ky_sorted, specular_counts)
+                # To plot vertical collapse instead of specular linecut 
+                #specular_results[polarization] = (expected_ky_sorted, np.sum(Z,0))
     
         else:
             # ... existing if/elif for log, counts, column norm ...
