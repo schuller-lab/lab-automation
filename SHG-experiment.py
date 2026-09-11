@@ -3,7 +3,7 @@
 """
 Created on Wed Feb 25 09:29:55 2026
 
-@author: wkmills
+@author: wkmills 
 """
 
 ###############################################################################
@@ -148,6 +148,18 @@ def _measure_corrected_power_mw(pol):
     # Beamsplitter-corrected estimate of power delivered to the microscope (mW)
     ratio = .940/.039 if pol == 's' else .815/.178
     return devices['PM'].read_power() * ratio * 1e3
+
+def _measure_corrected_power_mw_averaged(pol, n=3, delay_s=0.2):
+    # Average a few single-shot reads to reject power-meter noise -- the beamsplitter
+    # ratio above amplifies it substantially for s-pol -- before deciding whether power
+    # has really drifted (see POWER_DRIFT_TOLERANCE_MW). A single noisy sample was
+    # enough to spuriously trigger a full, minutes-long reconvergence search.
+    readings = []
+    for i in range(n):
+        readings.append(_measure_corrected_power_mw(pol))
+        if i < n - 1:
+            time.sleep(delay_s)
+    return sum(readings) / len(readings)
 
 def _converge_power(target_mw, pol, tolerance_mw=0.1, angle_min=None, angle_max=None,
                      max_iter=50, settle_s=2.0):
@@ -403,18 +415,70 @@ EXPERIMENT_TYPES = {
 }
 
 POWER_CHECK_INTERVAL = 10       # re-check power every N acquisition loops (run_experiment() only)
-POWER_DRIFT_TOLERANCE_MW = 0.1  # same default as _converge_power()'s own tolerance
+POWER_DRIFT_TOLERANCE_MW = 2.0  # deliberately looser than _converge_power()'s own 0.1 mW default:
+                                 # _measure_corrected_power_mw()'s beamsplitter ratio (~24x for s-pol)
+                                 # amplifies ordinary single-shot power-meter noise past 0.1 mW, so that
+                                 # tolerance made this check spuriously re-trigger and grind through
+                                 # max_iter iterations (each with two motor moves + settle) for minutes.
+                                 # As with set_power_and_pol(), exact mW precision isn't worth chasing
+                                 # here -- filenames record actual measured power for post-processing.
+POWER_DRIFT_MAX_ITER = 15       # fallback bisection cap if the fast analytic correction below
+                                 # doesn't land in tolerance; bounds worst-case runtime well below 50 iters
+POWER_DRIFT_FAST_MAX_ITER = 4   # a small drift should need only 1-2 analytic correction steps
+
+def _estimate_angle_for_mw(target_mw, current_angle_deg, current_mw, vertical_deg):
+    """
+    Closed-form Malus's-law estimate of the attenuator angle needed to reach target_mw,
+    backing out the effective P_max from the current (angle, power) operating point:
+    P(a) = Pmax * sin^2(a - vertical), the same relationship the '%' branch of
+    set_power_and_pol() uses directly (and monotonic over [vertical, vertical+90], as
+    _converge_power() already assumes). Returns None if the current point is too close
+    to zero power for the estimate to be numerically reliable.
+    """
+    s = np.sin(np.deg2rad(current_angle_deg - vertical_deg))
+    if abs(s) < 0.05 or current_mw <= 0:
+        return None
+    p_max_est = current_mw / s**2
+    ratio = target_mw / p_max_est
+    if not (0 <= ratio <= 1):
+        return None
+    return vertical_deg + np.rad2deg(np.arcsin(np.sqrt(ratio)))
+
+def _fast_reconverge_power(target_mw, pol, current_mw, tolerance_mw, settle_s=2.0,
+                            max_iter=POWER_DRIFT_FAST_MAX_ITER):
+    """
+    Analytic alternative to _converge_power()'s full 90-degree bisection, for the case
+    where we're already close and just need to correct for small drift: jump straight to
+    the Malus's-law-estimated angle instead of re-searching the whole range. Falls back to
+    the general bisection search if the estimate isn't trustworthy or doesn't converge
+    within max_iter tries (e.g. the drift turned out to be larger than expected).
+    """
+    vertical = devices['attenuator'].vertical
+    for i in range(max_iter):
+        current_angle = devices['attenuator'].get_position()
+        est_angle = _estimate_angle_for_mw(target_mw, current_angle, current_mw, vertical)
+        if est_angle is None:
+            break
+        est_angle = min(max(est_angle, vertical), vertical + 90)
+        devices['attenuator'].move_to(est_angle)
+        _set_hwp_for_pol(pol)
+        time.sleep(settle_s)
+        current_mw = _measure_corrected_power_mw(pol)
+        print(f"  fast-correct iter {i+1}: attenuator = {est_angle:.4f} deg, power = {current_mw:.3f} mW (target {target_mw:.3f} mW)")
+        if abs(current_mw - target_mw) <= tolerance_mw:
+            return
+    _converge_power(target_mw, pol, tolerance_mw=tolerance_mw, max_iter=POWER_DRIFT_MAX_ITER)
 
 def _check_and_correct_power(pol, expected_mw, tolerance_mw=POWER_DRIFT_TOLERANCE_MW):
     # Re-measure power and re-converge if it has drifted from expected_mw (laser power
     # drifts slowly over time; this catches that during a long mirror sweep, where
     # wavelength is constant so any change really is drift, not expected physics).
-    current_mw = _measure_corrected_power_mw(pol)
+    current_mw = _measure_corrected_power_mw_averaged(pol)
     print(f"Power check: {current_mw:.3f} mW (expected {expected_mw:.3f} mW)")
     if abs(current_mw - expected_mw) > tolerance_mw:
         print(f"Power drifted by {current_mw - expected_mw:+.3f} mW. Re-adjusting...")
         try:
-            _converge_power(expected_mw, pol, tolerance_mw=tolerance_mw)
+            _fast_reconverge_power(expected_mw, pol, current_mw, tolerance_mw)
         except (ValueError, RuntimeError) as e:
             print(f"Power re-adjustment failed: {e}. Continuing with current power.")
 
