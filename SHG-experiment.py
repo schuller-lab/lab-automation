@@ -577,6 +577,7 @@ def run_experiment(experiment_type, power, pol_in, pol_out, resume_from=0):
        filename = filename.replace('.', ',') # Because .csv files can't have '.' in the name
        devices['lf'].acquire_as_csv(filename, directory)
 
+    devices['lf'].cleanup_temp_files()
     devices['mirror'].move_to(0)
 
     return
@@ -623,6 +624,7 @@ def run_wavelength_experiment(power, pol_in, pol_out, wl_start, wl_stop, wl_step
        filename = filename.replace('.', ',') # Because .csv files can't have '.' in the name
        devices['lf'].acquire_as_csv(filename, directory)
 
+    devices['lf'].cleanup_temp_files()
     print(f"Restoring pump wavelength to {original_wavelength} nm...")
     devices['laser'].set_wavelength(original_wavelength)
     params['pump wavelength'] = original_wavelength
