@@ -79,6 +79,7 @@ class LightField:
         if 'grating' in self.params: self.set_grating(self.params['grating']) 
         
         self.did_first_acquire = False # see acquire_as_csv() below
+        self._pending_cleanup = [] # auto-saved .spe files awaiting deletion; see cleanup_temp_files()
 
     def reconnect(self, show_GUI=True):
         """Call this after LightField crashes. Kills any orphaned LightField 
@@ -194,12 +195,12 @@ class LightField:
 #             raise RuntimeError("Failed to reconnect to LightField")
 # =============================================================================
         
-        if not self.did_first_acquire: # Trying to save the first-acquired frame tends to result in an error, so this is my solution 
-            self.experiment.Acquire() 
+        if not self.did_first_acquire: # Trying to save the first-acquired frame tends to result in an error, so this is my solution
+            self.experiment.Acquire()
             while self.experiment.IsRunning:
                 time.sleep(0.1)
-            Path.unlink(self.file_manager.GetRecentlyAcquiredFileNames()[0]) # Delete the auto-saved file 
-            self.did_first_acquire = True 
+            self._pending_cleanup.append(self.file_manager.GetRecentlyAcquiredFileNames()[0]) # Deleted later by cleanup_temp_files()
+            self.did_first_acquire = True
         
         # Acquire a frame 
         self.experiment.Acquire()
@@ -245,15 +246,33 @@ class LightField:
                 f.write('\n')
         
         print("Image saved as " + filename + ".csv")
-        
-        # Delete the auto-saved file 
-        del image_set, frame, data_1d, data_2d
-        Path.unlink(recent_file) 
 
-    # Exit/close LightField 
+        # Defer deleting the auto-saved file; see cleanup_temp_files()
+        del image_set, frame, data_1d, data_2d
+        self._pending_cleanup.append(recent_file)
+
+    def cleanup_temp_files(self):
+        """Delete LightField's auto-saved .spe files whose deletion was deferred by
+        acquire_as_csv(). Deleting immediately after each acquisition races LightField's
+        own async GUI file-open (for its live preview), which crashes LightField outright
+        if it loses that race; deferring the deletion until the whole run is done avoids
+        the race. Call this once after an experiment loop finishes (and it's also called
+        from close() as a safety net)."""
+        n = len(self._pending_cleanup)
+        for path in self._pending_cleanup:
+            try:
+                Path.unlink(path)
+            except FileNotFoundError:
+                pass
+        self._pending_cleanup = []
+        if n:
+            print(f"Cleaned up {n} temp files.")
+
+    # Exit/close LightField
     def close(self):
-        self.lf.Dispose() 
-        LightField._instance = None 
+        self.cleanup_temp_files()
+        self.lf.Dispose()
+        LightField._instance = None
         print("LightField has been closed.")
 
 def is_lightfield_running():
