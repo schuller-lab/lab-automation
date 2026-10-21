@@ -354,7 +354,7 @@ for base_name, dir_list in groups.items():
         vmin = max(np.percentile(positive, 2), 1e-6)
         vmax = np.percentile(positive, 99.7)
         
-        cmap = plt.cm.viridis.copy()
+        cmap = plt.cm.viridis_r.copy()
         
         date = os.getcwd().split(os.sep)[-1] 
         
