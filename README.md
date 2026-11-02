@@ -64,6 +64,7 @@ method on any connected device — handy for one-off moves/reads without writing
 | `LightFieldControls.py` | `LightField` class — launches/controls Princeton Instruments LightField (exposure, center wavelength, grating, CSV acquisition) via pythonnet. |
 | `KinesisControls.py` | `K10CR2` / `PRMTZ8` classes — Thorlabs Kinesis rotation and motion stage control via pythonnet. |
 | `PowerMeterControls.py` | `PM100D` class — Thorlabs power meter readout via PyVISA. |
+| `mff101.py` | `MFF101` class — Thorlabs MFF101 flip mount that moves the power meter into (position 2) / out of (position 1) the pump path, via the Kinesis `FilterFlipperCLI` DLL (pythonnet). Serial number is hardcoded in `SHG-experiment.py`'s `setup()`. |
 | `LaserControls.py` | `ChameleonLaser` class — sets/reads the pump laser's wavelength over serial, with confirm-and-retry polling until the laser settles on target. |
 | `SpectrometerWavelengthRanges.py` | Per-center-wavelength pixel→wavelength lookup table, used by `LightFieldControls.py` to label CSV output columns. |
 

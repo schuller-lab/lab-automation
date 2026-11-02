@@ -16,6 +16,7 @@ from LightFieldControls import LightField
 from KinesisControls import (K10CR2, PRMTZ8) 
 from PowerMeterControls import PM100D
 from LaserControls import ChameleonLaser
+from mff101 import MFF101
 
 from Thorlabs.MotionControl.DeviceManagerCLI import DeviceNotReadyException # for error handling 
 ###############################################################################
@@ -26,12 +27,15 @@ import os # For mkdir, path.join, etc.
 from pathlib import Path
 import inspect
 import time
+from contextlib import contextmanager
+
+FLIP_SETTLE_S = 0.5  # wait after flipping the power meter into the beam before reading
 
 def setup():
     
     input('Make sure: \n(1) the hwp, analyzer, and mirror mount are disconnected in Kinesis \n' + 
           '(2) there is no LightField window open \n' +
-          "(3) the power meter and mirror mount's KCube are on \n" + 'Then press [Enter]')    
+          "(3) the power meter, flipmount, and mirror mount's KCube are on \n" + 'Then press [Enter]')    
     
     # Serial numbers of the various cage rotation mounts 
     rotation_serials = {'attenuator': '55537294', 
@@ -65,6 +69,11 @@ def setup():
     # Connect to the power meter
     devices['PM'] = PM100D('USB0::4883::32888::P0007396::0::INSTR')
 
+    # Connect to the flipmount carrying the power meter (position 2 = in the beam); start with it out
+    devices['flipper'] = MFF101('flipper', '37011769')
+    devices['flipper'].connect()
+    devices['flipper'].flip_out()
+
     # Connect to the tunable pump laser
     devices['laser'] = ChameleonLaser('laser')
     devices['laser'].connect()
@@ -82,6 +91,7 @@ def set_pump_wavelength():
         except ValueError:
             print("Only enter numbers please.")
     devices['laser'].set_wavelength(wavelength)
+    devices['PM'].set_wavelength(wavelength) 
     params["pump wavelength"] = wavelength
     print(f"Pump wavelength set to {params['pump wavelength']} nm and laser driven to match.")
         
@@ -94,6 +104,7 @@ def check_devices():
         devices['hwp'].get_position() 
         devices['mirror'].get_position()
         devices['PM'].identify()
+        devices['flipper'].get_position()
         devices['laser'].get_wavelength()
         print("All devices are connected")
         return True 
@@ -124,6 +135,8 @@ def finish():
             devices['hwp'].disconnect()
             devices['analyzer'].disconnect() 
             devices['mirror'].disconnect() 
+            devices['flipper'].flip_out()
+            devices['flipper'].disconnect()
             devices['PM'].disconnect()
             devices['laser'].disconnect()
             devices['lf'].close()
@@ -144,29 +157,58 @@ def _set_hwp_for_pol(pol):
     elif pol == '45':
         devices['hwp'].move_to((45 + attenuator_offset) / 2 + devices['hwp'].vertical)
 
-def _measure_corrected_power_mw(pol):
-    # Beamsplitter-corrected estimate of power delivered to the microscope (mW)
-    ratio = .940/.039 if pol == 's' else .815/.178
-    return devices['PM'].read_power() * ratio * 1e3
+@contextmanager
+def _meter_in_beam():
+    # Flip the power meter into the pump path, and always flip it back out afterwards
+    # (even on error) so the pump reaches the sample. Re-entrant: nested uses leave the
+    # meter in until the outermost block exits.
+    flipper = devices['flipper']
+    was_in = flipper.is_in_beam()
+    if not was_in:
+        flipper.flip_in()
+        time.sleep(FLIP_SETTLE_S)
+    try:
+        yield
+    finally:
+        if not was_in:
+            flipper.flip_out()
 
-def _measure_corrected_power_mw_averaged(pol, n=3, delay_s=0.2):
-    # Average a few single-shot reads to reject power-meter noise -- the beamsplitter
-    # ratio above amplifies it substantially for s-pol -- before deciding whether power
-    # has really drifted (see POWER_DRIFT_TOLERANCE_MW). A single noisy sample was
+def _measure_corrected_power_mw(pol=None):
+    # Power of the pump beam (mW), measured with the meter flipped into the beam.
+    # (pol is unused now that the beamsplitter pick-off is gone; kept so call sites are unchanged.)
+    with _meter_in_beam():
+        return devices['PM'].read_power() * 1e3
+
+def _measure_corrected_power_mw_averaged(pol=None, n=3, delay_s=0.2):
+    # Average a few single-shot reads to reject power-meter noise before deciding whether
+    # power has really drifted (see POWER_DRIFT_TOLERANCE_MW). A single noisy sample was
     # enough to spuriously trigger a full, minutes-long reconvergence search.
     readings = []
-    for i in range(n):
-        readings.append(_measure_corrected_power_mw(pol))
-        if i < n - 1:
-            time.sleep(delay_s)
+    with _meter_in_beam():
+        for i in range(n):
+            readings.append(_measure_corrected_power_mw(pol))
+            if i < n - 1:
+                time.sleep(delay_s)
     return sum(readings) / len(readings)
 
+@_meter_in_beam()  # keep the meter in the beam for the whole search, then flip out
 def _converge_power(target_mw, pol, tolerance_mw=0.1, angle_min=None, angle_max=None,
                      max_iter=50, settle_s=2.0):
+    # Only the attenuator is scanned (the power reading isn't polarization-sensitive),
+    # then the hwp is set once for the final attenuator position -- even if the search fails,
+    # so the polarization optics are never left out of step with the attenuator.
+    try:
+        return _search_attenuator_for_power(target_mw, tolerance_mw, angle_min, angle_max,
+                                            max_iter, settle_s)
+    finally:
+        _set_hwp_for_pol(pol)
+
+def _search_attenuator_for_power(target_mw, tolerance_mw=0.1, angle_min=None, angle_max=None,
+                                 max_iter=50, settle_s=2.0):
     """
-    Bisection search over the attenuator angle (hwp follows via _set_hwp_for_pol()
-    to preserve polarization) until the beamsplitter-corrected power estimate at
-    the microscope reaches target_mw, +/- tolerance_mw. angle_min/angle_max default
+    Bisection search over the attenuator angle only (the hwp is not moved here; see
+    _converge_power()) until the measured power (power meter flipped into
+    the beam) at the microscope reaches target_mw, +/- tolerance_mw. angle_min/angle_max default
     to the attenuator's full 0-100% Malus's-law range (vertical to vertical+90),
     matching the '%' branch's own convention.
     Returns (final_angle_deg, final_power_mw).
@@ -183,11 +225,10 @@ def _converge_power(target_mw, pol, tolerance_mw=0.1, angle_min=None, angle_max=
 
     def measure_at(angle):
         devices['attenuator'].move_to(angle)
-        _set_hwp_for_pol(pol)
         time.sleep(settle_s)
-        return _measure_corrected_power_mw(pol)
+        return _measure_corrected_power_mw()
 
-    p_now = _measure_corrected_power_mw(pol)
+    p_now = _measure_corrected_power_mw()
     if abs(p_now - target_mw) <= tolerance_mw:
         return devices['attenuator'].get_position(), p_now
 
@@ -251,25 +292,25 @@ def set_power_and_pol(power, pol):
         print("Aborting set_power_and_pol().")
         return
 
-    # Set attenuator
-    if units == 'mW':
-        try:
-            _converge_power(value, pol)
-        except (ValueError, RuntimeError) as e:
-            print(f"Power convergence failed: {e}")
-            return 0
-    elif units == '%':
-        devices['attenuator'].move_to(np.rad2deg(np.arcsin(np.sqrt(value/100))) + devices['attenuator'].vertical)
+    # Keep the meter in the beam for the whole set-and-measure sequence so it flips in
+    # once and out once (nested _meter_in_beam() uses below leave it in until this exits)
+    with _meter_in_beam():
+        # Set attenuator
+        if units == 'mW':
+            try:
+                _converge_power(value, pol)
+            except (ValueError, RuntimeError) as e:
+                print(f"Power convergence failed: {e}")
+                return 0
+        elif units == '%':
+            devices['attenuator'].move_to(np.rad2deg(np.arcsin(np.sqrt(value/100))) + devices['attenuator'].vertical)
 
-    # Set hwp
-    _set_hwp_for_pol(pol)
+        # Set hwp
+        _set_hwp_for_pol(pol)
 
-    # Data for the following calculation comes from:
-        # https://www.thorlabs.com/uv-fused-silica-broadband-plate-beamsplitters-coating-700---1100-nm?pn=BSN11&tabName=Overview
-    # Note that s-(p-)pol in the beamsplitter reference frame is p-(s-)pol in the sample frame 
-    # Currently, we assume a pump wavelength of 1080 nm 
-    if params['pump wavelength'] != 1080: print('Warning: the power label output by set_power_and_pol() is currently only valid at 1080 nm')
-    power_to_microscope_mw = _measure_corrected_power_mw(pol)
+        # Measure the final power
+        if params['pump wavelength'] != 1080: print('Warning: the power label output by set_power_and_pol() is currently only valid at 1080 nm')
+        power_to_microscope_mw = _measure_corrected_power_mw(pol)
 
     return f"{np.abs(power_to_microscope_mw):.2f}mW-{pol}pol"
 
@@ -416,8 +457,7 @@ EXPERIMENT_TYPES = {
 
 POWER_CHECK_INTERVAL = 10       # re-check power every N acquisition loops (run_experiment() only)
 POWER_DRIFT_TOLERANCE_MW = 2.0  # deliberately looser than _converge_power()'s own 0.1 mW default:
-                                 # _measure_corrected_power_mw()'s beamsplitter ratio (~24x for s-pol)
-                                 # amplifies ordinary single-shot power-meter noise past 0.1 mW, so that
+                                 # ordinary single-shot power-meter noise can exceed 0.1 mW, so that
                                  # tolerance made this check spuriously re-trigger and grind through
                                  # max_iter iterations (each with two motor moves + settle) for minutes.
                                  # As with set_power_and_pol(), exact mW precision isn't worth chasing
@@ -444,6 +484,7 @@ def _estimate_angle_for_mw(target_mw, current_angle_deg, current_mw, vertical_de
         return None
     return vertical_deg + np.rad2deg(np.arcsin(np.sqrt(ratio)))
 
+@_meter_in_beam()
 def _fast_reconverge_power(target_mw, pol, current_mw, tolerance_mw, settle_s=2.0,
                             max_iter=POWER_DRIFT_FAST_MAX_ITER):
     """
@@ -461,11 +502,11 @@ def _fast_reconverge_power(target_mw, pol, current_mw, tolerance_mw, settle_s=2.
             break
         est_angle = min(max(est_angle, vertical), vertical + 90)
         devices['attenuator'].move_to(est_angle)
-        _set_hwp_for_pol(pol)
         time.sleep(settle_s)
-        current_mw = _measure_corrected_power_mw(pol)
+        current_mw = _measure_corrected_power_mw()
         print(f"  fast-correct iter {i+1}: attenuator = {est_angle:.4f} deg, power = {current_mw:.3f} mW (target {target_mw:.3f} mW)")
         if abs(current_mw - target_mw) <= tolerance_mw:
+            _set_hwp_for_pol(pol)  # hwp follows the final attenuator position once, not every step
             return
     _converge_power(target_mw, pol, tolerance_mw=tolerance_mw, max_iter=POWER_DRIFT_MAX_ITER)
 
@@ -473,14 +514,16 @@ def _check_and_correct_power(pol, expected_mw, tolerance_mw=POWER_DRIFT_TOLERANC
     # Re-measure power and re-converge if it has drifted from expected_mw (laser power
     # drifts slowly over time; this catches that during a long mirror sweep, where
     # wavelength is constant so any change really is drift, not expected physics).
-    current_mw = _measure_corrected_power_mw_averaged(pol)
-    print(f"Power check: {current_mw:.3f} mW (expected {expected_mw:.3f} mW)")
-    if abs(current_mw - expected_mw) > tolerance_mw:
-        print(f"Power drifted by {current_mw - expected_mw:+.3f} mW. Re-adjusting...")
-        try:
-            _fast_reconverge_power(expected_mw, pol, current_mw, tolerance_mw)
-        except (ValueError, RuntimeError) as e:
-            print(f"Power re-adjustment failed: {e}. Continuing with current power.")
+    # The meter stays in the beam for the check and any re-adjustment: one flip-in, one flip-out.
+    with _meter_in_beam():
+        current_mw = _measure_corrected_power_mw_averaged(pol)
+        print(f"Power check: {current_mw:.3f} mW (expected {expected_mw:.3f} mW)")
+        if abs(current_mw - expected_mw) > tolerance_mw:
+            print(f"Power drifted by {current_mw - expected_mw:+.3f} mW. Re-adjusting...")
+            try:
+                _fast_reconverge_power(expected_mw, pol, current_mw, tolerance_mw)
+            except (ValueError, RuntimeError) as e:
+                print(f"Power re-adjustment failed: {e}. Continuing with current power.")
 
 def _prepare_experiment(experiment_type, config, power, pol_in, pol_out, require_calibration):
     """
@@ -529,15 +572,17 @@ def _prepare_experiment(experiment_type, config, power, pol_in, pol_out, require
     date_folder = rf"C:\Users\schul\data\Wes\{config['folder']}\{date.today()}"
     directory = make_unique_dir(os.path.join(date_folder, sample + '_' + pol_in + pol_out + '_' + config['suffix']))
 
-    # Set the polarization optics
-    power_pol = set_power_and_pol(power, pol_in)
+    # Set the analyzer (independent of the pump power, so done before the meter is flipped in)
     if pol_out == 's':
         devices['analyzer'].move_to(devices['analyzer'].vertical + 90)
     elif pol_out == 'p':
         devices['analyzer'].move_to(devices['analyzer'].vertical)
     # The case where pol_out is neither 's' nor 'p' is handled earlier in this function
 
-    initial_power_mw = _measure_corrected_power_mw(pol_in)
+    # Set the pump polarization optics and take the initial power reading with a single flip-in/out
+    with _meter_in_beam():
+        power_pol = set_power_and_pol(power, pol_in)
+        initial_power_mw = _measure_corrected_power_mw(pol_in)
 
     return sample, directory, power_pol, initial_power_mw
 
@@ -918,6 +963,7 @@ if not ('devices' in globals() or 'devices' in locals()):
                'analyzer' : None,
                'mirror' : None,
                'PM' : None,
+               'flipper' : None,
                'laser' : None
                }
 
