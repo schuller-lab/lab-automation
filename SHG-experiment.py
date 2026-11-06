@@ -31,7 +31,7 @@ def setup():
     
     input('Make sure: \n(1) the hwp, analyzer, and mirror mount are disconnected in Kinesis \n' + 
           '(2) there is no LightField window open \n' +
-          "(3) the power meter and mirror mount's KCube are on \n" + 'Then press [Enter]')    
+          "(3) the power meter and mirror mount's KCube are on and the flipmount is plugged in \n" + 'Then press [Enter]')    
     
     # Serial numbers of the various cage rotation mounts 
     rotation_serials = {'attenuator': '55537294', 
@@ -82,7 +82,8 @@ def set_pump_wavelength():
         except ValueError:
             print("Only enter numbers please.")
     devices['laser'].set_wavelength(wavelength)
-    params["pump wavelength"] = wavelength
+    devices['PM'].set_wavelength(wavelength) 
+    params['pump wavelength'] = wavelength
     print(f"Pump wavelength set to {params['pump wavelength']} nm and laser driven to match.")
         
 def check_devices():
@@ -268,7 +269,7 @@ def set_power_and_pol(power, pol):
         # https://www.thorlabs.com/uv-fused-silica-broadband-plate-beamsplitters-coating-700---1100-nm?pn=BSN11&tabName=Overview
     # Note that s-(p-)pol in the beamsplitter reference frame is p-(s-)pol in the sample frame 
     # Currently, we assume a pump wavelength of 1080 nm 
-    if params['pump wavelength'] != 1080: print('Warning: the power label output by set_power_and_pol() is currently only valid at 1080 nm')
+    #if params['pump wavelength'] != 1080: print('Warning: the power label output by set_power_and_pol() is currently only valid at 1080 nm')
     power_to_microscope_mw = _measure_corrected_power_mw(pol)
 
     return f"{np.abs(power_to_microscope_mw):.2f}mW-{pol}pol"
@@ -319,7 +320,7 @@ def pixel_deg_calibration(N_points:int):
             print("Invalid input. Try again.")
             
     pixels_per_2NA = round(NA * np.abs(k_neg1_pix - k_pos1_pix)) 
-    devices['PM'].set_wavelength(params['pump wavelength']) 
+    #devices['PM'].set_wavelength(params['pump wavelength']) 
     devices['PM'].zero() 
     
     
